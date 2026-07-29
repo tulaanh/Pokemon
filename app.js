@@ -1069,3 +1069,321 @@ function learnSkillDirectly(choiceIdx) {
     document.getElementById('skill-modal').style.display = 'none';
     updateUI();
 }
+// --- STATE BỔ SUNG CHO ROSTER FILTER ---
+let searchQuery = '';
+let sortBy = 'default';
+
+// Map thứ tự độ hiếm để phục vụ sắp xếp
+const RARITY_ORDER = {
+    'Common': 1,
+    'Rare': 2,
+    'Epic': 3,
+    'Legendary': 4
+};
+
+// --- CẬP NHẬT SWITCH TAB ---
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    if (tabId === 'gacha-tab') {
+        tabButtons[0].classList.add('active');
+    } else if (tabId === 'roster-tab') {
+        tabButtons[1].classList.add('active');
+        renderRoster();
+    } else if (tabId === 'merge-tab') {
+        tabButtons[2].classList.add('active');
+        updateMergeUI();
+    } else if (tabId === 'campaign-tab') {
+        tabButtons[3].classList.add('active');
+        if (team.length > 0 && !enemyPoke) startBattle();
+    }
+
+    const targetTab = document.getElementById(tabId);
+    if (targetTab) targetTab.classList.add('active');
+    updateUI();
+}
+
+// --- CONTROLS TÌM KIẾM & SẮP XẾP ---
+function onSearchChange(val) {
+    searchQuery = val.trim().toLowerCase();
+    renderRoster();
+}
+
+function onSortChange(val) {
+    sortBy = val;
+    renderRoster();
+}
+
+// --- LOGIC LỌC VÀ SẮP XẾP ĐỘI HÌNH ---
+function filterAndSortTeam() {
+    // 1. Lọc theo tên Pokémon
+    let filtered = team.map((p, originalIndex) => ({ pokemon: p, originalIndex }))
+        .filter(item => item.pokemon.name.toLowerCase().includes(searchQuery));
+
+    // 2. Sắp xếp
+    filtered.sort((a, b) => {
+        let pA = a.pokemon;
+        let pB = b.pokemon;
+
+        if (sortBy === 'rarity-desc') {
+            return (RARITY_ORDER[pB.rarity.name] || 0) - (RARITY_ORDER[pA.rarity.name] || 0);
+        } else if (sortBy === 'rarity-asc') {
+            return (RARITY_ORDER[pA.rarity.name] || 0) - (RARITY_ORDER[pB.rarity.name] || 0);
+        } else if (sortBy === 'type') {
+            return pA.type.localeCompare(pB.type);
+        } else if (sortBy === 'level-desc') {
+            return pB.level - pA.level;
+        }
+        return 0; // default giữ nguyên thứ tự
+    });
+
+    return filtered;
+}
+
+// --- CẬP NHẬT RENDER ROSTER ---
+function renderRoster() {
+    let rosterContainer = document.getElementById('roster-container');
+    if (!rosterContainer) return;
+
+    if (team.length === 0) {
+        rosterContainer.innerHTML = '<div style="text-align:center; padding: 20px; color: #a6adc8;">Chưa có Pokémon nào! Hãy sang mục Gacha để quay.</div>';
+        return;
+    }
+
+    let processedList = filterAndSortTeam();
+
+    if (processedList.length === 0) {
+        rosterContainer.innerHTML = '<div style="text-align:center; padding: 20px; color: #a6adc8;">Không tìm thấy Pokémon phù hợp!</div>';
+        return;
+    }
+
+    rosterContainer.innerHTML = '';
+    processedList.forEach(item => {
+        let p = item.pokemon;
+        let idx = item.originalIndex;
+        let vBadge = p.vLevel > 0 ? `<span class="v-badge">V${p.vLevel}</span>` : '';
+        let isSelected = (idx === activePokeIdx);
+
+        rosterContainer.innerHTML += `
+            <div class="roster-item" onclick="switchPokemon(${idx})" style="${isSelected ? 'border: 2px solid #f5c518; background: #2f2f45;' : ''}">
+                <div>
+                    <span class="${p.rarity.color}"><b>${p.name}</b></span> ${vBadge} (Lv.${p.level})
+                    <span class="type-badge type-${p.type}">${p.type}</span>
+                    ${isSelected ? ' <small style="color:#f5c518; font-weight:bold;">[Đang Chọn xuất trận]</small>' : ''}
+                </div>
+                <small>HP:${p.hp}/${p.maxHp} | ATK:${p.atk} | SPD:${p.speed}</small>
+            </div>
+        `;
+    });
+}
+function renderRoster() {
+    let rosterContainer = document.getElementById('roster-container');
+    if (!rosterContainer) return;
+
+    if (team.length === 0) {
+        rosterContainer.innerHTML = '<div style="text-align:center; padding: 20px; color: #a6adc8;">Chưa có Pokémon nào! Hãy sang mục Gacha để quay.</div>';
+        return;
+    }
+
+    let processedList = filterAndSortTeam();
+
+    if (processedList.length === 0) {
+        rosterContainer.innerHTML = '<div style="text-align:center; padding: 20px; color: #a6adc8;">Không tìm thấy Pokémon phù hợp!</div>';
+        return;
+    }
+
+    rosterContainer.innerHTML = '';
+    processedList.forEach(item => {
+        let p = item.pokemon;
+        let idx = item.originalIndex;
+        let vBadge = p.vLevel > 0 ? `<span class="v-badge">V${p.vLevel}</span>` : '';
+        let isSelected = (idx === activePokeIdx);
+
+        rosterContainer.innerHTML += `
+            <div class="roster-item" onclick="showPokeDetailModal(${idx})" style="${isSelected ? 'border: 2px solid #f5c518; background: #2f2f45;' : ''}">
+                <div>
+                    <span class="${p.rarity.color}"><b>${p.name}</b></span> ${vBadge} (Lv.${p.level})
+                    <span class="type-badge type-${p.type}">${p.type}</span>
+                    ${isSelected ? ' <small style="color:#f5c518; font-weight:bold;">[Đang Chọn xuất trận]</small>' : ''}
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <small>HP:${p.hp}/${p.maxHp} | ATK:${p.atk} | SPD:${p.speed}</small>
+                    <button class="choice-btn" style="padding: 4px 8px; margin: 0; font-size: 11px; width: auto;" onclick="event.stopPropagation(); switchPokemon(${idx});">Xuất Trận</button>
+                </div>
+            </div>
+        `;
+    });
+}
+// --- HIỂN THỊ CHI TIẾT POKÉMON ---
+function showPokeDetailModal(idx) {
+    let p = team[idx];
+    if (!p) return;
+
+    // 1. Tên & Hệ
+    let vText = p.vLevel > 0 ? ` <span class="v-badge">V${p.vLevel}</span>` : '';
+    document.getElementById('modal-poke-name').innerHTML = `<span class="${p.rarity.color}">${p.name}</span>${vText} (Lv.${p.level})`;
+    
+    let badgeEl = document.getElementById('modal-poke-type');
+    badgeEl.innerText = p.type;
+    badgeEl.className = `type-badge type-${p.type}`;
+
+    // 2. Stats
+    let statsContainer = document.getElementById('modal-poke-stats');
+    statsContainer.innerHTML = `
+        <div class="detail-stat-item">Độ Hiếm: <b class="${p.rarity.color}">${p.rarity.name}</b></div>
+        <div class="detail-stat-item">Kinh Nghiệm: <b>${p.exp}/${p.maxExp} EXP</b></div>
+        <div class="detail-stat-item">Máu (HP): <b>${p.hp}/${p.maxHp}</b></div>
+        <div class="detail-stat-item">Công (ATK): <b>${p.atk}</b></div>
+        <div class="detail-stat-item">Tốc Độ (SPD): <b>${p.speed}</b></div>
+        <div class="detail-stat-item">MP Ban Đầu: <b>${p.initMp}/100</b></div>
+    `;
+
+    // 3. Skills
+    let skillsContainer = document.getElementById('modal-poke-skills');
+    skillsContainer.innerHTML = '';
+
+    p.skills.forEach((sk, i) => {
+        let valText = sk.power ? `Sát thương: ${sk.power}` : sk.shield ? `Khiên: +${sk.shield}` : `Hồi phục: +${sk.heal}`;
+        let effBadge = sk.effect ? `<span style="color: #64ffda;"> (Hiệu ứng: ${sk.effect.name})</span>` : '';
+        let cdText = sk.cd > 0 ? `Hồi chiêu: ${sk.cd} lượt` : 'Không hồi chiêu';
+
+        skillsContainer.innerHTML += `
+            <div class="detail-skill-card">
+                <div class="skill-header">
+                    <span>Ô ${i + 1}: ${sk.name} <small style="color: #aaa;">(${sk.type || 'Kỹ năng'})</small></span>
+                    <span>MP: ${sk.cost}</span>
+                </div>
+                <div class="skill-desc">
+                    <b style="color: #4caf50;">${valText}</b>${effBadge} | <small>${cdText}</small>
+                </div>
+            </div>
+        `;
+    });
+
+    document.getElementById('poke-detail-modal').style.display = 'flex';
+}
+
+function closePokeDetailModal() {
+    document.getElementById('poke-detail-modal').style.display = 'none';
+}
+// --- BẢNG THỨ TỰ ĐỘ HIẾM & MẢNG ĐỘ HIẾM ---
+const RARITY_LEVELS = ['Common', 'Rare', 'Epic', 'Legendary'];
+
+// --- HÀM TẠO SKILL CÓ BẢNG TỶ LỆ & ĐIỀU KIỆN RÀNG BUỘC ---
+function generateSkillInstance(type, skillGroup, pokeRarity, pokeLevel = 1) {
+    let pool = ELEMENTAL_SKILL_TEMPLATES[type] ? ELEMENTAL_SKILL_TEMPLATES[type][skillGroup] : null;
+    
+    // Fallback phòng trường hợp không tìm thấy hệ/nhóm
+    if (!pool || pool.length === 0) {
+        pool = ELEMENTAL_SKILL_TEMPLATES['Fire']['Basic'];
+    }
+
+    let pokeRarityIdx = RARITY_LEVELS.indexOf(pokeRarity.name);
+    if (pokeRarityIdx === -1) pokeRarityIdx = 0;
+
+    // 1. ĐIỀU KIỆN RÀNG BUỘC: Chỉ lấy các Skill có độ hiếm <= độ hiếm của Pokémon
+    let eligiblePool = pool.filter(template => {
+        let skillRarityIdx = RARITY_LEVELS.indexOf(template.rarity || 'Common');
+        return skillRarityIdx <= pokeRarityIdx;
+    });
+
+    // Nếu không có skill phù hợp, lấy skill thấp nhất trong pool
+    if (eligiblePool.length === 0) {
+        eligiblePool = [pool[0]];
+    }
+
+    // 2. TÍNH TỶ LỆ (WEIGHT) THEO ĐỘ CHÊNH LỆCH ĐỘ HIẾM
+    // Chênh lệch = pokeRarityIdx - skillRarityIdx (Càng nhỏ -> Trọng số càng cao -> Tỷ lệ ra càng lớn)
+    let weightedPool = eligiblePool.map(template => {
+        let skillRarityIdx = RARITY_LEVELS.indexOf(template.rarity || 'Common');
+        let diff = pokeRarityIdx - skillRarityIdx; // diff >= 0
+        
+        // Trọng số gợi ý: Chênh lệch 0 (bằng cấp) -> Weight 10, Chênh lệch 1 -> Weight 3, Chênh lệch 2 -> Weight 1...
+        let weight = Math.pow(0.35, diff) * 10;
+        return { template, weight };
+    });
+
+    // 3. BỐC SKILL THEO NGUYÊN TẮC TRỌNG SỐ (WEIGHTED RANDOM)
+    let totalWeight = weightedPool.reduce((sum, item) => sum + item.weight, 0);
+    let rand = Math.random() * totalWeight;
+    let accumulatedWeight = 0;
+    let selectedTemplate = weightedPool[0].template;
+
+    for (let item of weightedPool) {
+        accumulatedWeight += item.weight;
+        if (rand <= accumulatedWeight) {
+            selectedTemplate = item.template;
+            break;
+        }
+    }
+
+    // 4. SCALE SỨC MẠNH CẢ THEO POKÉMON RARITY LẪN SKILL RARITY
+    let randMultiplier = pokeRarity.skillMin + Math.random() * (pokeRarity.skillMax - pokeRarity.skillMin);
+    
+    let skillInst = {
+        name: selectedTemplate.name,
+        type: skillGroup,
+        rarity: selectedTemplate.rarity || 'Common',
+        category: selectedTemplate.category,
+        cost: selectedTemplate.cost,
+        cd: selectedTemplate.cd,
+        currentCd: 0,
+        mpGain: selectedTemplate.mpGain || 0,
+        effect: selectedTemplate.effect ? JSON.parse(JSON.stringify(selectedTemplate.effect)) : null,
+        baseValPower: selectedTemplate.basePower ? Math.round(selectedTemplate.basePower * randMultiplier) : 0,
+ baseValShield: selectedTemplate.baseShield ? Math.round(selectedTemplate.baseShield * randMultiplier) : 0,
+        baseValHeal: selectedTemplate.baseHeal ? Math.round(selectedTemplate.baseHeal * randMultiplier) : 0
+    };
+
+    recalculateSkillValues(skillInst, pokeLevel);
+    return skillInst;
+}
+
+// Cập nhật Modal chọn Skill khi lên Cấp (Hiển thị nhãn Độ Hiếm của Chiêu)
+function triggerSkillSelect(p, group, title) {
+    document.getElementById('modal-title').innerText = title;
+    
+    // Tạo 2 sự lựa chọn ngẫu nhiên dựa theo quy tắc độ hiếm
+    let opt1 = generateSkillInstance(p.type, group, p.rarity, p.level);
+    let opt2 = generateSkillInstance(p.type, group, p.rarity, p.level);
+    let choices = [opt1, opt2];
+
+    let choicesHtml = '';
+    choices.forEach((sk, idx) => {
+        let valText = sk.power ? `Sát thương: ${sk.power}` : sk.shield ? `Khiên: +${sk.shield}` : `Hồi máu: +${sk.heal}`;
+        let effText = sk.effect ? ` | Hiệu ứng: ${sk.effect.name}` : '';
+        let rarityClass = `rarity-${sk.rarity}`;
+
+        choicesHtml += `
+            <button class="choice-btn" onclick="learnSkillDirectly(${idx})">
+                <b class="${rarityClass}">[${sk.rarity}] ${sk.name}</b> (${group} - Hệ ${p.type})<br>
+                <small style="color: #f5c518;">${valText}</small>${effText} | <small>MP: ${sk.cost} | CD: ${sk.cd}t</small>
+            </button>
+        `;
+    });
+
+    window.pendingChoices = choices;
+    document.getElementById('skill-choices').innerHTML = choicesHtml;
+    document.getElementById('skill-modal').style.display = 'flex';
+}
+// Cập nhật danh sách Skills trong Modal Chi Tiết
+p.skills.forEach((sk, i) => {
+    let valText = sk.power ? `Sát thương: ${sk.power}` : sk.shield ? `Khiên: +${sk.shield}` : `Hồi phục: +${sk.heal}`;
+    let effBadge = sk.effect ? `<span style="color: #64ffda;"> (Hiệu ứng: ${sk.effect.name})</span>` : '';
+    let cdText = sk.cd > 0 ? `Hồi chiêu: ${sk.cd} lượt` : 'Không hồi chiêu';
+    let rarityColorClass = sk.rarity ? `rarity-${sk.rarity}` : 'rarity-Common';
+
+    skillsContainer.innerHTML += `
+        <div class="detail-skill-card">
+            <div class="skill-header">
+                <span>Ô ${i + 1}: <b class="${rarityColorClass}">[${sk.rarity || 'Common'}] ${sk.name}</b></span>
+                <span>MP: ${sk.cost}</span>
+            </div>
+            <div class="skill-desc">
+                <b style="color: #4caf50;">${valText}</b>${effBadge} | <small>${cdText}</small>
+            </div>
+        </div>
+    `;
+});
