@@ -1,100 +1,3 @@
-// --- TYPE ADVANTAGE MATRIX ---
-const TYPE_CHART = {
-    Fire: { Grass: 1.5, Water: 0.75, Fire: 0.75, Rock: 0.75 },
-    Water: { Fire: 1.5, Rock: 1.5, Grass: 0.75, Water: 0.75 },
-    Grass: { Water: 1.5, Rock: 1.5, Fire: 0.75, Grass: 0.75 },
-    Electric: { Water: 1.5, Grass: 0.75, Electric: 0.75, Rock: 0.5 },
-    Rock: { Fire: 1.5, Electric: 1.5, Grass: 0.75, Water: 0.75 }
-};
-
-// --- DATABASE & RARITY ---
-const RARITIES = [
-    { name: 'Common', chance: 50, color: 'rarity-Common', statMult: 1.0, skillMin: 0.8, skillMax: 1.1 },
-    { name: 'Rare', chance: 30, color: 'rarity-Rare', statMult: 1.3, skillMin: 1.1, skillMax: 1.4 },
-    { name: 'Epic', chance: 15, color: 'rarity-Epic', statMult: 1.6, skillMin: 1.4, skillMax: 1.8 },
-    { name: 'Legendary', chance: 5, color: 'rarity-Legendary', statMult: 2.2, skillMin: 1.9, skillMax: 2.5 }
-];
-
-const POKEMON_SPECIES = [
-    { name: 'Charmander', type: 'Fire', baseHp: 110, baseAtk: 22, baseSpeed: 115, baseInitMp: 30 },
-    { name: 'Magmar', type: 'Fire', baseHp: 125, baseAtk: 25, baseSpeed: 105, baseInitMp: 25 },
-    { name: 'Squirtle', type: 'Water', baseHp: 130, baseAtk: 18, baseSpeed: 95, baseInitMp: 20 },
-    { name: 'Psyduck', type: 'Water', baseHp: 120, baseAtk: 21, baseSpeed: 100, baseInitMp: 30 },
-    { name: 'Bulbasaur', type: 'Grass', baseHp: 120, baseAtk: 20, baseSpeed: 100, baseInitMp: 25 },
-    { name: 'Oddish', type: 'Grass', baseHp: 115, baseAtk: 19, baseSpeed: 90, baseInitMp: 20 },
-    { name: 'Pikachu', type: 'Electric', baseHp: 95, baseAtk: 26, baseSpeed: 140, baseInitMp: 40 },
-    { name: 'Voltorb', type: 'Electric', baseHp: 90, baseAtk: 23, baseSpeed: 150, baseInitMp: 35 },
-    { name: 'Geodude', type: 'Rock', baseHp: 210, baseAtk: 17, baseSpeed: 75, baseInitMp: 15 },
-    { name: 'Onix', type: 'Rock', baseHp: 280, baseAtk: 21, baseSpeed: 80, baseInitMp: 20 },
-    { name: 'Rattata', type: 'Grass', baseHp: 90, baseAtk: 16, baseSpeed: 110, baseInitMp: 20 },
-    { name: 'Pidgey', type: 'Electric', baseHp: 100, baseAtk: 18, baseSpeed: 120, baseInitMp: 20 },
-    { name: 'Machop', type: 'Fire', baseHp: 140, baseAtk: 24, baseSpeed: 85, baseInitMp: 20 }
-];
-
-// --- SKILL TEMPLATES ---
-const ELEMENTAL_SKILL_TEMPLATES = {
-    Fire: {
-        Basic: [{ name: 'Cào Xé Lửa', basePower: 12, cost: 0, cd: 0, mpGain: 25, category: 'damage' }],
-        Skill1: [
-            { name: 'Tia Lửa Đốt Bỏng', basePower: 22, cost: 20, cd: 1, category: 'damage', effect: { type: 'burn', duration: 3, val: 10, name: 'Thiêu Đốt' } },
-            { name: 'Lớp Giáp Nhiệt', baseShield: 25, cost: 20, cd: 2, category: 'shield' }
-        ],
-        Skill2: [
-            { name: 'Phun Lửa Lớn', basePower: 45, cost: 45, cd: 2, category: 'damage', effect: { type: 'burn', duration: 3, val: 16, name: 'Thiêu Đốt' } },
-            { name: 'Vòng Lửa Hồi Phục', baseHeal: 35, cost: 40, cd: 3, category: 'heal' }
-        ],
-        Ultimate: [{ name: 'Rồng Lửa Hủy Diệt', basePower: 90, cost: 80, cd: 3, category: 'damage', effect: { type: 'burn', duration: 4, val: 25, name: 'Thiêu Đốt Cuồng Nổ' } }]
-    },
-    Water: {
-        Basic: [{ name: 'Đòn Nước Nhẹ', basePower: 10, cost: 0, cd: 0, mpGain: 25, category: 'damage' }],
-        Skill1: [
-            { name: 'Bóng Nước Làm Chậm', basePower: 22, cost: 20, cd: 1, category: 'damage', effect: { type: 'slow', duration: 2, val: 30, name: 'Giảm Tốc 30%' } },
-            { name: 'Khiên Bong Bóng', baseShield: 30, cost: 20, cd: 2, category: 'shield' }
-        ],
-        Skill2: [
-            { name: 'Thủy Pháo Làm Băng', basePower: 42, cost: 40, cd: 2, category: 'damage', effect: { type: 'slow', duration: 3, val: 40, name: 'Giảm Tốc 40%' } },
-            { name: 'Dòng Sống Hồi Sinh', baseHeal: 40, cost: 45, cd: 3, category: 'heal' }
-        ],
-        Ultimate: [{ name: 'Sóng Thần Cuồng Nổ', basePower: 95, cost: 80, cd: 3, category: 'damage', effect: { type: 'slow', duration: 3, val: 50, name: 'Giảm Tốc 50%' } }]
-    },
-    Grass: {
-        Basic: [{ name: 'Roi Gai Cơ Bản', basePower: 11, cost: 0, cd: 0, mpGain: 25, category: 'damage' }],
-        Skill1: [
-            { name: 'Lá Sắc Nhọn', basePower: 26, cost: 20, cd: 1, category: 'damage' },
-            { name: 'Áo Giáp Gai Phản Đòn', baseShield: 25, cost: 25, cd: 2, category: 'shield', effect: { type: 'thorn', duration: 3, val: 30, name: 'Giáp Gai (30% Reflect)' } }
-        ],
-        Skill2: [
-            { name: 'Bão Lá Tấn Công', basePower: 48, cost: 40, cd: 2, category: 'damage' },
-            { name: 'Vỏ Cây Giáp Gai Cổ Thụ', baseShield: 35, cost: 35, cd: 3, category: 'shield', effect: { type: 'thorn', duration: 3, val: 45, name: 'Giáp Gai (45% Reflect)' } }
-        ],
-        Ultimate: [{ name: 'Cuồng Phong Thực Vật', basePower: 98, cost: 80, cd: 3, category: 'damage' }]
-    },
-    Electric: {
-        Basic: [{ name: 'Chớp Điện', basePower: 14, cost: 0, cd: 0, mpGain: 25, category: 'damage' }],
-        Skill1: [
-            { name: 'Sốc Điện Tê Liệt', basePower: 25, cost: 25, cd: 1, category: 'damage', effect: { type: 'shock', duration: 2, val: 12, name: 'Nhiễm Điện' } },
-            { name: 'Trường Điện Từ', baseShield: 22, cost: 20, cd: 2, category: 'shield' }
-        ],
-        Skill2: [
-            { name: 'Sấm Sét Liên Hoàn', basePower: 50, cost: 50, cd: 2, category: 'damage', effect: { type: 'shock', duration: 3, val: 18, name: 'Nhiễm Điện' } },
-            { name: 'Nạp Năng Lượng', baseHeal: 30, cost: 35, cd: 3, category: 'heal' }
-        ],
-        Ultimate: [{ name: 'Thiên Lôi Hủy Diệt', basePower: 100, cost: 85, cd: 3, category: 'damage', effect: { type: 'shock', duration: 3, val: 28, name: 'Sốc Điện Nặng' } }]
-    },
-    Rock: {
-        Basic: [{ name: 'Ném Đá Cổ Đại', basePower: 15, cost: 0, cd: 0, mpGain: 25, category: 'damage' }],
-        Skill1: [
-            { name: 'Vạn Lý Thạch Giáp', baseShield: 45, cost: 20, cd: 2, category: 'shield' },
-            { name: 'Đá Lăn Giảm Tốc', basePower: 20, cost: 20, cd: 1, category: 'damage', effect: { type: 'slow', duration: 2, val: 25, name: 'Giảm Tốc 25%' } }
-        ],
-        Skill2: [
-            { name: 'Giáp Đá Thạch Anh', baseShield: 65, cost: 35, cd: 3, category: 'shield', effect: { type: 'thorn', duration: 3, val: 35, name: 'Giáp Gai (35% Reflect)' } },
-            { name: 'Mưa Đá Đè Chắn', basePower: 52, cost: 45, cd: 2, category: 'damage' }
-        ],
-        Ultimate: [{ name: 'Địa Shaking Hủy Diệt', basePower: 110, cost: 85, cd: 3, category: 'damage' }]
-    }
-};
-
 // --- GAME STATE ---
 let gems = 1000;
 let team = [];
@@ -852,4 +755,317 @@ function log(msg) {
         logBox.innerHTML += `<div>${msg}</div>`;
         logBox.scrollTop = logBox.scrollHeight;
     }
+}
+// Variable theo dõi phần thưởng tạm tích lũy trong trận
+let battleRewards = { gems: 0, exp: 0 };
+
+// Cập nhật hàm switchTab
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+    if (tabId === 'gacha-tab') {
+        document.querySelectorAll('.tab-btn')[0].classList.add('active');
+    } else if (tabId === 'merge-tab') {
+        document.querySelectorAll('.tab-btn')[1].classList.add('active');
+        updateMergeUI();
+    } else if (tabId === 'campaign-tab') {
+        document.querySelectorAll('.tab-btn')[2].classList.add('active');
+        // Khi mở Tab Campaign, cập nhật Preview trước
+        selectCampaign(selectedCampaignId);
+    }
+    document.getElementById(tabId).classList.add('active');
+    updateUI();
+}
+
+// Cập nhật chọn Màn Campaign & Hiển thị Xem Trước Quái
+function selectCampaign(id) {
+    selectedCampaignId = id;
+    renderCampaignSelector();
+
+    let campData = CAMPAIGN_LEVELS.find(c => c.id === selectedCampaignId);
+    if (!campData) return;
+
+    document.getElementById('preview-title').innerText = `⚔️ ${campData.name}`;
+    document.getElementById('preview-desc').innerText = campData.description;
+    document.getElementById('preview-rewards').innerText = `Thưởng: +${campData.rewardGems} Gem | +${campData.rewardExp} EXP`;
+
+    let enemyListContainer = document.getElementById('preview-enemy-list');
+    enemyListContainer.innerHTML = '';
+
+    campData.enemies.forEach((enemy, idx) => {
+        let species = POKEMON_SPECIES.find(s => s.name === enemy.speciesName);
+        let rarity = RARITIES.find(r => r.name === enemy.rarityName);
+
+        enemyListContainer.innerHTML += `
+            <div class="enemy-preview-card">
+                <div><b>Wave ${idx + 1}:</b> <span class="${rarity ? rarity.color : ''}">${enemy.speciesName}</span></div>
+                <small>Cấp ${enemy.level} | Hệ: <span class="type-badge type-${species ? species.type : 'Fire'}">${species ? species.type : ''}</span></small>
+            </div>
+        `;
+    });
+
+    // Ẩn màn hình chiến đấu cho đến khi nhấn nút bắt đầu
+    document.getElementById('battle-section').style.display = 'none';
+}
+
+// Hàm được gọi khi bấm nút "BẮT ĐẦU CHIẾN ĐẤU"
+function confirmAndStartBattle() {
+    if (team.length === 0) {
+        alert("Bạn chưa có Pokémon nào! Hãy sang mục Gacha để quay trước.");
+        switchTab('gacha-tab');
+        return;
+    }
+
+    document.getElementById('battle-section').style.display = 'block';
+    // Scroll mượt xuống khu vực chiến đấu
+    document.getElementById('battle-section').scrollIntoView({ behavior: 'smooth' });
+
+    battleRewards = { gems: 0, exp: 0 };
+    startBattle();
+}
+
+// Cập nhật hàm Xử lý Hạ Gục Quái & Thắng/Thua
+function handleEnemyDefeated() {
+    let p = team[activePokeIdx];
+    let earnedExp = 30 + enemyPoke.level * 10;
+    battleRewards.exp += earnedExp;
+    
+    log(`🏆 Hạ gục thành công ${enemyPoke.name}! Nhận +${earnedExp} EXP`);
+    gainExp(p, earnedExp);
+
+    currentWaveIdx++;
+    if (currentWaveIdx < currentCampaignEnemies.length) {
+        log(`➡️ Chuẩn bị bước vào Wave ${currentWaveIdx + 1}...`);
+        setTimeout(() => loadCampaignWave(currentWaveIdx), 1200);
+    } else {
+        // HOÀN THÀNH TOÀN BỘ WAVE -> VICTORY
+        let campData = CAMPAIGN_LEVELS.find(c => c.id === selectedCampaignId);
+        gems += campData.rewardGems;
+        battleRewards.gems = campData.rewardGems;
+        battleRewards.exp += campData.rewardExp;
+
+        document.getElementById('gem-count').innerText = gems;
+        gainExp(p, campData.rewardExp);
+
+        showBattleResultModal(true);
+    }
+}
+
+// Cập nhật hàm xử lý Bot thắng (Người chơi Thua)
+function executeBotTurn() {
+    isProcessingTurn = true;
+    setTimeout(() => {
+        if (enemyPoke.hp <= 0) return;
+
+        let p = team[activePokeIdx];
+        let usableSkills = enemyPoke.skills.filter(s => s.currentCd === 0 && enemyPoke.mp >= s.cost);
+        let chosenSkill = null;
+
+        if (enemyPoke.hp / enemyPoke.maxHp < 0.4) {
+            chosenSkill = usableSkills.find(s => s.category === 'heal');
+        }
+
+        if (!chosenSkill) {
+            let dmgSkills = usableSkills.filter(s => s.category === 'damage');
+            dmgSkills.sort((a, b) => b.power - a.power);
+            if (dmgSkills.length > 0) chosenSkill = dmgSkills[0];
+        }
+
+        if (!chosenSkill) chosenSkill = enemyPoke.skills[0];
+
+        executeSkillAction(enemyPoke, p, chosenSkill, false);
+
+        enemyPoke.spdGauge -= 100;
+        enemyPoke.skills.forEach(s => { if (s.currentCd > 0) s.currentCd--; });
+
+        if (p.hp <= 0) {
+            log(`💀 <b>${p.name}</b> đã gục ngã! Chiến dịch thất bại.`);
+            isProcessingTurn = false;
+            updateUI();
+            showBattleResultModal(false);
+            return;
+        }
+
+        isProcessingTurn = false;
+        determineNextTurn();
+    }, 800);
+}
+
+// Hiển thị Modal Kết Quả Thắng / Thua
+function showBattleResultModal(isWin) {
+    let titleEl = document.getElementById('result-title');
+    let bodyEl = document.getElementById('result-body');
+    let p = team[activePokeIdx];
+    let campData = CAMPAIGN_LEVELS.find(c => c.id === selectedCampaignId);
+
+    if (isWin) {
+        titleEl.innerText = "🏆 CHIẾN THẮNG!";
+        titleEl.className = "result-victory";
+        bodyEl.innerHTML = `
+            <p style="text-align:center;">Chúc mừng! Bạn đã chinh phục thành công <b>${campData.name}</b>!</p>
+            <div class="reward-item">💎 <b>Gem Thưởng:</b> <span style="color:#f5c518;">+${battleRewards.gems} Gem</span></div>
+            <div class="reward-item">⭐ <b>Kinh Nghiệm:</b> <span style="color:#4caf50;">+${battleRewards.exp} EXP</span></div>
+            <div class="reward-item">🐉 <b>Trạng Thái:</b> ${p.name} (Lv.${p.level})</div>
+        `;
+    } else {
+        titleEl.innerText = "💀 THẤT BẠI!";
+        titleEl.className = "result-defeat";
+        bodyEl.innerHTML = `
+            <p style="text-align:center;"><b>${p.name}</b> đã gục ngã tại Wave ${currentWaveIdx + 1}/${currentCampaignEnemies.length}!</p>
+            <div class="reward-item">💡 <b>Gợi ý nâng cấp:</b>
+                <ul style="margin: 5px 0; padding-left: 20px;">
+                    <li>Vào mục <b>Gacha</b> quay thêm Pokémon mạnh hơn.</li>
+                    <li>Vào mục <b>Hợp Nhất (Merge)</b> để nâng cấp <b>V-Level</b>.</li>
+                </ul>
+            </div>
+        `;
+    }
+
+    document.getElementById('result-modal').style.display = 'flex';
+}
+
+function closeResultModal() {
+    document.getElementById('result-modal').style.display = 'none';
+    document.getElementById('battle-section').style.display = 'none';
+}
+function createInnateSkillInstance(type, innateTemplate, rarity, pokeLevel = 1) {
+    let randMultiplier = rarity.skillMin + Math.random() * (rarity.skillMax - rarity.skillMin);
+    let skillInst = {
+        name: innateTemplate.name,
+        type: 'Skill1 (Bẩm Sinh)',
+        category: innateTemplate.category,
+        cost: innateTemplate.cost,
+        cd: innateTemplate.cd,
+        currentCd: 0,
+        mpGain: innateTemplate.mpGain || 0,
+        effect: innateTemplate.effect ? JSON.parse(JSON.stringify(innateTemplate.effect)) : null,
+        baseValPower: innateTemplate.basePower ? Math.round(innateTemplate.basePower * randMultiplier) : 0,
+        baseValShield: innateTemplate.baseShield ? Math.round(innateTemplate.baseShield * randMultiplier) : 0,
+        baseValHeal: innateTemplate.baseHeal ? Math.round(innateTemplate.baseHeal * randMultiplier) : 0
+    };
+    recalculateSkillValues(skillInst, pokeLevel);
+    return skillInst;
+}
+
+// --- GACHA (Cập nhật khởi tạo skill bẩm sinh) ---
+function drawGacha() {
+    if (gems < 100) { alert("Không đủ Gem!"); return; }
+    gems -= 100;
+    document.getElementById('gem-count').innerText = gems;
+
+    let rand = Math.random() * 100;
+    let cum = 0;
+    let selectedRarity = RARITIES[0];
+    for (let r of RARITIES) {
+        cum += r.chance;
+        if (rand <= cum) { selectedRarity = r; break; }
+    }
+
+    let species = POKEMON_SPECIES[Math.floor(Math.random() * POKEMON_SPECIES.length)];
+
+    let newPoke = {
+        id: Date.now(),
+        name: species.name,
+        type: species.type,
+        rarity: selectedRarity,
+        vLevel: 0,
+        level: 1,
+        exp: 0,
+        maxExp: 50,
+        maxHp: 0,
+        hp: 0,
+        shield: 0,
+        mp: 0,
+        initMp: Math.round(species.baseInitMp * selectedRarity.statMult),
+        atk: 0,
+        speed: 0,
+        spdGauge: 0,
+        effects: [],
+        skills: [
+            generateSkillInstance(species.type, 'Basic', selectedRarity, 1),
+            createInnateSkillInstance(species.type, species.innateSkill1, selectedRarity, 1) // Skill 1 Bẩm sinh
+        ]
+    };
+
+    recalculatePokemonStats(newPoke);
+    newPoke.hp = newPoke.maxHp;
+
+    team.push(newPoke);
+
+    document.getElementById('gacha-result').innerHTML = `
+        <span class="${selectedRarity.color}">
+            🎉 Bạn nhận được: <b>[${selectedRarity.name}] ${newPoke.name}</b> (Hệ ${newPoke.type})!
+        </span>
+    `;
+
+    renderRoster();
+}
+
+// --- LOGIC TĂNG EXP & CHỌN SKILL MỖI 5 CẤP ---
+function gainExp(p, amount) {
+    p.exp += amount;
+    log(`✨ ${p.name} nhận +${amount} EXP!`);
+
+    if (p.exp >= p.maxExp) {
+        p.level++;
+        p.exp -= p.maxExp;
+        p.maxExp = Math.round(p.maxExp * 1.5);
+
+        recalculatePokemonStats(p);
+        p.skills.forEach(s => recalculateSkillValues(s, p.level));
+
+        log(`🎉 <b>${p.name} LÊN CẤP ${p.level}!</b> (Chỉ số đã được gia tăng!)`);
+
+        // Quy tắc: Mỗi 5 cấp được chọn 1 skill mới (Level 5, 10, 15, 20...)
+        if (p.level % 5 === 0) {
+            let targetGroup = 'Skill2';
+            if (p.level >= 10) targetGroup = 'Ultimate';
+            triggerSkillSelect(p, targetGroup, `🔥 THĂNG CẤP LEVEL ${p.level}: CHỌN HỌC KỸ NĂNG MỚI`);
+        }
+    }
+
+    renderRoster();
+    updateUI();
+}
+
+function triggerSkillSelect(p, group, title) {
+    document.getElementById('modal-title').innerText = title;
+    
+    // Tạo 2 sự lựa chọn ngẫu nhiên từ kho Skill
+    let opt1 = generateSkillInstance(p.type, group, p.rarity, p.level);
+    let opt2 = generateSkillInstance(p.type, group, p.rarity, p.level);
+    let choices = [opt1, opt2];
+
+    let choicesHtml = '';
+    choices.forEach((sk, idx) => {
+        let valText = sk.power ? `Sát thương: ${sk.power}` : sk.shield ? `Khiên: +${sk.shield}` : `Hồi máu: +${sk.heal}`;
+        let effText = sk.effect ? ` | Hiệu ứng: ${sk.effect.name}` : '';
+        choicesHtml += `
+            <button class="choice-btn" onclick="learnSkillDirectly(${idx})">
+                <b>${sk.name}</b> (${group} - Hệ ${p.type}) | ${valText}${effText} | MP: ${sk.cost}<br>
+                <small>Chỉ số đã scale theo Lv.${p.level}</small>
+            </button>
+        `;
+    });
+
+    window.pendingChoices = choices;
+    document.getElementById('skill-choices').innerHTML = choicesHtml;
+    document.getElementById('skill-modal').style.display = 'flex';
+}
+
+function learnSkillDirectly(choiceIdx) {
+    let p = team[activePokeIdx];
+    let sk = window.pendingChoices[choiceIdx];
+
+    // Học bổ sung nếu chưa đủ 4 ô, nếu đã đủ 4 ô sẽ ghi đè vào ô kỹ năng cuối
+    if (p.skills.length < 4) {
+        p.skills.push(sk);
+    } else {
+        p.skills[3] = sk;
+    }
+
+    log(`🔥 ${p.name} đã học kỹ năng mới thành công: <b>${sk.name}</b>!`);
+    document.getElementById('skill-modal').style.display = 'none';
+    updateUI();
 }

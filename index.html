@@ -66,53 +66,82 @@
     </div>
 
     <!-- TAB 3: CAMPAIGN BATTLE -->
-    <div id="campaign-tab" class="tab-content">
-        <div class="card" style="margin-bottom: 15px;">
-            <h3>🗺️ Chọn Màn Chiến Dịch</h3>
-            <div id="campaign-selector" class="campaign-list"></div>
+    <!-- Cập nhật đoạn HTML thuộc TAB 3: CAMPAIGN BATTLE -->
+<div id="campaign-tab" class="tab-content">
+    <div class="card" style="margin-bottom: 15px;">
+        <h3>🗺️ Chọn Màn Chiến Dịch</h3>
+        <div id="campaign-selector" class="campaign-list"></div>
+    </div>
+
+    <!-- BẢNG PREVIEW THÔNG TIN MÀN CHƠI & QUÁI -->
+    <div id="campaign-preview-card" class="card" style="margin-bottom: 15px; border: 1px solid #f5c518;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3 id="preview-title" style="margin: 0; color: #f5c518;">⚔️ Thông Tin Màn Chơi</h3>
+            <span id="preview-rewards" style="color: #4caf50; font-weight: bold;">Thưởng: -- Gem | -- EXP</span>
         </div>
+        <p id="preview-desc" style="color: #aaa; margin: 8px 0; font-size: 14px;">Chọn một màn chơi để xem thông tin quái vật.</p>
+        
+        <h4 style="margin: 10px 0 5px 0; color: #ff4757;">👾 Danh Sách Quái Vật Đối Đầu:</h4>
+        <div id="preview-enemy-list" class="enemy-preview-grid"></div>
 
-        <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3 id="campaign-title" style="margin: 0;">⚔️ Màn Hình Chiến Đấu</h3>
-                <div id="wave-indicator" style="color: #f5c518; font-weight: bold;">Wave: 0/0</div>
-            </div>
-
-            <div class="battle-screen">
-                <!-- Player Box -->
-                <div class="poke-box">
-                    <span id="player-type-badge" class="type-badge">--</span>
-                    <h4 id="player-name" style="margin: 5px 0;">--</h4>
-                    <div id="player-effects" class="effects-container"></div>
-                    <div class="hp-bar" title="Máu (HP)"><div id="player-hp" class="hp-fill"></div></div>
-                    <div class="shield-bar" title="Khiên"><div id="player-shield" class="shield-fill"></div></div>
-                    <div class="mp-bar" title="Năng lượng (MP)"><div id="player-mp" class="mp-fill"></div></div>
-                    <div class="spd-bar" title="Thanh Lượt Tốc Độ"><div id="player-spd" class="spd-fill"></div></div>
-                    <p id="player-stats" class="poke-stats-text">HP: - | MP: - | SPD Gauge: -</p>
-                </div>
-
-                <div style="text-align: center;">
-                    <div style="font-size: 28px; font-weight: bold; color: #ff4b2b;">VS</div>
-                    <small id="turn-indicator" style="color: #f5c518; font-weight: bold;">Chưa bắt đầu</small>
-                </div>
-
-                <!-- Enemy Box -->
-                <div class="poke-box">
-                    <span id="enemy-type-badge" class="type-badge">--</span>
-                    <h4 id="enemy-name" style="margin: 5px 0;">Đối Thủ</h4>
-                    <div id="enemy-effects" class="effects-container"></div>
-                    <div class="hp-bar" title="Máu (HP)"><div id="enemy-hp" class="hp-fill"></div></div>
-                    <div class="shield-bar" title="Khiên"><div id="enemy-shield" class="shield-fill"></div></div>
-                    <div class="mp-bar" title="Năng lượng (MP)"><div id="enemy-mp" class="mp-fill"></div></div>
-                    <div class="spd-bar" title="Thanh Lượt Tốc Độ"><div id="enemy-spd" class="spd-fill"></div></div>
-                    <p id="enemy-stats" class="poke-stats-text">HP: - | MP: - | SPD Gauge: -</p>
-                </div>
-            </div>
-
-            <!-- Action Skills Grid -->
-            <div id="skills-container" class="skill-grid"></div>
+        <div style="text-align: center; margin-top: 15px;">
+            <button id="btn-start-battle" class="gacha-btn" onclick="confirmAndStartBattle()" style="width: 60%; font-size: 18px;">
+                ⚔️ BẮT ĐẦU CHIẾN ĐẤU
+            </button>
         </div>
     </div>
+
+    <!-- KHU VỰC CHIẾN ĐẤU (ẨN CHO ĐẾN KHI BẤM BẮT ĐẦU) -->
+    <div id="battle-section" class="card" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3 id="campaign-title" style="margin: 0;">⚔️ Màn Hình Chiến Đấu</h3>
+            <div id="wave-indicator" style="color: #f5c518; font-weight: bold;">Wave: 0/0</div>
+        </div>
+
+        <div class="battle-screen">
+            <!-- Player Box -->
+            <div class="poke-box">
+                <span id="player-type-badge" class="type-badge">--</span>
+                <h4 id="player-name" style="margin: 5px 0;">--</h4>
+                <div id="player-effects" class="effects-container"></div>
+                <div class="hp-bar" title="Máu (HP)"><div id="player-hp" class="hp-fill"></div></div>
+                <div class="shield-bar" title="Khiên"><div id="player-shield" class="shield-fill"></div></div>
+                <div class="mp-bar" title="Năng lượng (MP)"><div id="player-mp" class="mp-fill"></div></div>
+                <div class="spd-bar" title="Thanh Lượt Tốc Độ"><div id="player-spd" class="spd-fill"></div></div>
+                <p id="player-stats" class="poke-stats-text">HP: - | MP: - | SPD Gauge: -</p>
+            </div>
+
+            <div style="text-align: center;">
+                <div style="font-size: 28px; font-weight: bold; color: #ff4b2b;">VS</div>
+                <small id="turn-indicator" style="color: #f5c518; font-weight: bold;">Chưa bắt đầu</small>
+            </div>
+
+            <!-- Enemy Box -->
+            <div class="poke-box">
+                <span id="enemy-type-badge" class="type-badge">--</span>
+                <h4 id="enemy-name" style="margin: 5px 0;">Đối Thủ</h4>
+                <div id="enemy-effects" class="effects-container"></div>
+                <div class="hp-bar" title="Máu (HP)"><div id="enemy-hp" class="hp-fill"></div></div>
+                <div class="shield-bar" title="Khiên"><div id="enemy-shield" class="shield-fill"></div></div>
+                <div class="mp-bar" title="Năng lượng (MP)"><div id="enemy-mp" class="mp-fill"></div></div>
+                <div class="spd-bar" title="Thanh Lượt Tốc Độ"><div id="enemy-spd" class="spd-fill"></div></div>
+                <p id="enemy-stats" class="poke-stats-text">HP: - | MP: - | SPD Gauge: -</p>
+            </div>
+        </div>
+
+        <!-- Action Skills Grid -->
+        <div id="skills-container" class="skill-grid"></div>
+    </div>
+</div>
+
+<!-- MODAL BÁO KẾT QUẢ TRẬN ĐẤU (THẮNG / THUA) -->
+<div id="result-modal" class="modal">
+    <div class="modal-content" style="max-width: 450px;">
+        <h2 id="result-title" style="margin-bottom: 10px;">🏆 VICTORY!</h2>
+        <div id="result-body" style="text-align: left; font-size: 14px; line-height: 1.6; margin: 15px 0;"></div>
+        <button class="gacha-btn" onclick="closeResultModal()">XÁC NHẬN</button>
+    </div>
+</div>
 
     <!-- Battle Log -->
     <div id="log">--- Nhật ký chiến đấu ---</div>
@@ -137,6 +166,7 @@
 </div>
 
 <!-- NHÚNG FILE SCRIPT -->
+<script src="pokemonData.js"></script>
 <script src="campaigns.js"></script>
 <script src="app.js"></script>
 </body>

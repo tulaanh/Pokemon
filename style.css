@@ -348,3 +348,41 @@ h1, h2, h3 {
     margin-top: 15px; 
     border: 1px solid #313244; 
 }
+/* ENEMY PREVIEW IN CAMPAIGN */
+.enemy-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.enemy-preview-card {
+    background: #181825;
+    border: 1px solid #3f3f5a;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
+.enemy-preview-card b {
+    color: #fff;
+}
+
+/* RESULT MODAL STYLES */
+.result-victory {
+    color: #2ed573 !important;
+    text-shadow: 0 0 10px rgba(46, 213, 115, 0.4);
+}
+
+.result-defeat {
+    color: #ff4757 !important;
+    text-shadow: 0 0 10px rgba(255, 71, 87, 0.4);
+}
+
+.reward-item {
+    background: #181825;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    border: 1px solid #383852;
+}
