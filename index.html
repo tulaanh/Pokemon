@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pokémon Engine: Campaign & Merge System</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="game-container">
+    <h1>⚡ Pokémon Engine: Campaign & Merge System ⚡</h1>
+
+    <!-- TAB NAVIGATION -->
+    <div class="tab-nav">
+        <button class="tab-btn active" onclick="switchTab('gacha-tab')">🎁 MỤC GACHA & ĐỘI HÌNH</button>
+        <button class="tab-btn" onclick="switchTab('merge-tab')">🧬 HỢP NHẤT (MERGE)</button>
+        <button class="tab-btn" onclick="switchTab('campaign-tab')">⚔️ CHIẾN DỊCH (CAMPAIGN)</button>
+    </div>
+
+    <!-- TAB 1: GACHA & INVENTORY -->
+    <div id="gacha-tab" class="tab-content active">
+        <div class="flex">
+            <div class="card" style="flex: 0.8;">
+                <h3>🎁 Chiêu Mộ Gacha</h3>
+                <button class="gacha-btn" onclick="drawGacha()">QUAY GACHA (100 Gem)</button>
+                <p style="text-align: center; margin: 12px 0; font-size: 16px;">
+                    Số Gem hiện có: <span id="gem-count" style="color:#f5c518; font-weight: bold;">1000</span>
+                </p>
+                <div id="gacha-result" style="text-align: center; font-size: 14px; min-height: 45px;"></div>
+            </div>
+
+            <div class="card">
+                <h3>🎒 Bộ Sưu Tập & Đội Hình</h3>
+                <div id="roster-container" class="roster-list">Chưa có Pokémon nào!</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 2: MERGE SYSTEM -->
+    <div id="merge-tab" class="tab-content">
+        <div class="card">
+            <h3>🧬 Viện Hợp Nhất Pokémon (Nâng Cấp V)</h3>
+            <p style="text-align: center; font-size: 13px; color: #a6adc8;">
+                Gộp 2 Pokémon <b>cùng loại & cùng cấp V</b> để tăng cấp V (Tăng % Chỉ số gốc). Phôi phụ sẽ bị tiêu biến!
+            </p>
+            
+            <div class="merge-slots-container">
+                <div id="slot-main" class="merge-slot" onclick="openMergeSelectModal('main')">
+                    <div class="slot-placeholder">+ Chọn Phôi Chính</div>
+                </div>
+                <div class="merge-plus">+</div>
+                <div id="slot-sub" class="merge-slot" onclick="openMergeSelectModal('sub')">
+                    <div class="slot-placeholder">+ Chọn Phôi Phụ</div>
+                </div>
+            </div>
+
+            <div id="merge-preview" class="merge-preview-box">
+                <i>Vui lòng chọn đủ 2 Pokémon...</i>
+            </div>
+
+            <button id="btn-do-merge" class="gacha-btn" onclick="executeMerge()" disabled style="margin-top: 15px;">
+                🧬 TIẾN HÀNH HỢP NHẤT
+            </button>
+        </div>
+    </div>
+
+    <!-- TAB 3: CAMPAIGN BATTLE -->
+    <div id="campaign-tab" class="tab-content">
+        <div class="card" style="margin-bottom: 15px;">
+            <h3>🗺️ Chọn Màn Chiến Dịch</h3>
+            <div id="campaign-selector" class="campaign-list"></div>
+        </div>
+
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 id="campaign-title" style="margin: 0;">⚔️ Màn Hình Chiến Đấu</h3>
+                <div id="wave-indicator" style="color: #f5c518; font-weight: bold;">Wave: 0/0</div>
+            </div>
+
+            <div class="battle-screen">
+                <!-- Player Box -->
+                <div class="poke-box">
+                    <span id="player-type-badge" class="type-badge">--</span>
+                    <h4 id="player-name" style="margin: 5px 0;">--</h4>
+                    <div id="player-effects" class="effects-container"></div>
+                    <div class="hp-bar" title="Máu (HP)"><div id="player-hp" class="hp-fill"></div></div>
+                    <div class="shield-bar" title="Khiên"><div id="player-shield" class="shield-fill"></div></div>
+                    <div class="mp-bar" title="Năng lượng (MP)"><div id="player-mp" class="mp-fill"></div></div>
+                    <div class="spd-bar" title="Thanh Lượt Tốc Độ"><div id="player-spd" class="spd-fill"></div></div>
+                    <p id="player-stats" class="poke-stats-text">HP: - | MP: - | SPD Gauge: -</p>
+                </div>
+
+                <div style="text-align: center;">
+                    <div style="font-size: 28px; font-weight: bold; color: #ff4b2b;">VS</div>
+                    <small id="turn-indicator" style="color: #f5c518; font-weight: bold;">Chưa bắt đầu</small>
+                </div>
+
+                <!-- Enemy Box -->
+                <div class="poke-box">
+                    <span id="enemy-type-badge" class="type-badge">--</span>
+                    <h4 id="enemy-name" style="margin: 5px 0;">Đối Thủ</h4>
+                    <div id="enemy-effects" class="effects-container"></div>
+                    <div class="hp-bar" title="Máu (HP)"><div id="enemy-hp" class="hp-fill"></div></div>
+                    <div class="shield-bar" title="Khiên"><div id="enemy-shield" class="shield-fill"></div></div>
+                    <div class="mp-bar" title="Năng lượng (MP)"><div id="enemy-mp" class="mp-fill"></div></div>
+                    <div class="spd-bar" title="Thanh Lượt Tốc Độ"><div id="enemy-spd" class="spd-fill"></div></div>
+                    <p id="enemy-stats" class="poke-stats-text">HP: - | MP: - | SPD Gauge: -</p>
+                </div>
+            </div>
+
+            <!-- Action Skills Grid -->
+            <div id="skills-container" class="skill-grid"></div>
+        </div>
+    </div>
+
+    <!-- Battle Log -->
+    <div id="log">--- Nhật ký chiến đấu ---</div>
+</div>
+
+<!-- Skill Unlock / Swap Modal -->
+<div id="skill-modal" class="modal">
+    <div class="modal-content">
+        <h3 id="modal-title" style="color: #f5c518;">LEVEL UP! CHỌN KỸ NĂNG</h3>
+        <p id="modal-desc">Chọn 1 kỹ năng thuộc hệ của Pokémon để học:</p>
+        <div id="skill-choices"></div>
+    </div>
+</div>
+
+<!-- Merge Select Modal -->
+<div id="merge-modal" class="modal">
+    <div class="modal-content">
+        <h3 style="color: #f5c518;">CHỌN POKÉMON HỢP NHẤT</h3>
+        <div id="merge-modal-list" class="roster-list" style="max-height: 300px;"></div>
+        <button onclick="closeMergeModal()" class="choice-btn" style="text-align: center; margin-top: 10px; background: #ff4757;">Đóng</button>
+    </div>
+</div>
+
+<!-- NHÚNG FILE SCRIPT -->
+<script src="campaigns.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
