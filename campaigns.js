@@ -1,11 +1,10 @@
-// DATABASE CÁC CẤP ĐỘ CAMPAIGN
 const CAMPAIGN_LEVELS = [
     {
         id: 1,
         name: "Cửa 1: Khởi Đầu Hoang Dã",
         description: "Các Pokémon hoang dã cấp thấp thử sức tân thủ.",
         rewardGems: 150,
-        rewardExp: 100,
+        rewardExp: 100000,
         enemies: [
             { speciesName: "Rattata", level: 2, rarityName: "Common", statMult: 1.1 },
             { speciesName: "Pidgey", level: 3, rarityName: "Common", statMult: 1.2 }
@@ -55,7 +54,7 @@ const CAMPAIGN_LEVELS = [
         enemies: [
             { speciesName: "Machop", level: 14, rarityName: "Epic", statMult: 1.8 },
             { speciesName: "Pikachu", level: 15, rarityName: "Legendary", statMult: 2.2 },
-            { speciesName: "Onix", level: 18, rarityName: "Legendary", statMult: 2.8 } // Boss Rock cực khủng
+            { speciesName: "Onix", level: 18, rarityName: "Legendary", statMult: 2.8 }
         ]
     }
 ];

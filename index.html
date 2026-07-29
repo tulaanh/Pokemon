@@ -14,11 +14,37 @@
         <h1>⚡ Pokémon Engine: Campaign & Merge System ⚡</h1>
 
         <!-- TAB NAVIGATION -->
-        <div class="tab-nav">
+        <header>
+            <h1>⚡ Pokémon Engine ⚡</h1>
+            <div class="resource-bar">
+                💎 Gem: <span id="gem-count">1000</span>
+            </div>
+        </header>
+
+        <!-- THANH TABS -->
+        <div class="nav-tabs">
             <button class="tab-btn active" onclick="switchTab('gacha-tab')">🎁 GACHA</button>
             <button class="tab-btn" onclick="switchTab('roster-tab')">🎒 ĐỘI HÌNH</button>
             <button class="tab-btn" onclick="switchTab('merge-tab')">🧬 HỢP NHẤT</button>
             <button class="tab-btn" onclick="switchTab('campaign-tab')">⚔️ CHIẾN DỊCH</button>
+        </div>
+
+        <!-- 2. CẬP NHẬT GIAO DIỆN TAB GACHA -->
+        <div id="gacha-tab" class="tab-content active">
+            <div class="gacha-box">
+                <h3>🔮 Đài Triệu Hoán Pokémon</h3>
+                <p style="color: #a6adc8; margin-top: 5px;">Dùng Gem để chiêu mộ Pokémon mới về đội!</p>
+
+                <div class="gacha-actions">
+                    <button class="choice-btn" onclick="drawGachaMulti(1)">Quay x1 (100 💎)</button>
+                    <button class="choice-btn" onclick="drawGachaMulti(10)">Quay x10 (1.000 💎)</button>
+                    <button class="choice-btn" onclick="drawGachaMulti(50)">Quay x50 (5.000 💎)</button>
+                    <button class="choice-btn" onclick="drawGachaMulti(100)">Quay x100 (10.000 💎)</button>
+                </div>
+
+                <!-- THÊM THẺ NÀY ĐỂ HIỂN THỊ KẾT QUẢ GACHA -->
+                <div id="gacha-result"></div>
+            </div>
         </div>
 
         <!-- TAB 1: GACHA -->
@@ -55,7 +81,7 @@
             </div>
         </div>
 
-        <!-- TAB 2: MERGE SYSTEM -->
+        <!-- TAB 3: MERGE SYSTEM -->
         <div id="merge-tab" class="tab-content">
             <div class="card">
                 <h3>🧬 Viện Hợp Nhất Pokémon (Nâng Cấp V)</h3>
@@ -83,12 +109,30 @@
                 </button>
             </div>
         </div>
+        <div id="merge-modal" class="modal-overlay" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>🧬 Chọn Pokémon Phôi</h3>
+                    <button class="close-btn" onclick="closeMergeModal()">&times;</button>
+                </div>
 
-        <!-- TAB 3: CAMPAIGN BATTLE -->
-        <!-- Cập nhật đoạn HTML thuộc TAB 3: CAMPAIGN BATTLE -->
+                <!-- Ô NHẬP TÌM KIẾM THEO TÊN -->
+                <div style="margin-bottom: 12px;">
+                    <input type="text" id="merge-search-input" class="search-input"
+                        placeholder="🔍 Nhập tên Pokémon để tìm..." oninput="onMergeSearchChange(this.value)"
+                        style="width: 100%; padding: 8px 12px; box-sizing: border-box; border-radius: 6px;" />
+                </div>
+
+                <!-- DANH SÁCH POKÉMON PHÔI -->
+                <div id="merge-modal-list" class="roster-grid" style="max-height: 320px; overflow-y: auto;">
+                    <!-- JS tự động render vào đây -->
+                </div>
+            </div>
+        </div>
+        <!-- TAB 4: CAMPAIGN BATTLE -->
         <div id="campaign-tab" class="tab-content">
             <div class="card" style="margin-bottom: 15px;">
-                <h3>🗺️ Chọn Màn Chiến Dịch</h3>
+                <h3>MAP Chọn Màn Chiến Dịch</h3>
                 <div id="campaign-selector" class="campaign-list"></div>
             </div>
 
@@ -112,7 +156,7 @@
                 </div>
             </div>
 
-            <!-- KHU VỰC CHIẾN ĐẤU (ẨN CHO ĐẾN KHI BẤM BẮT ĐẦU) -->
+            <!-- KHU VỰC CHIẾN ĐẤU -->
             <div id="battle-section" class="card" style="display: none;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <h3 id="campaign-title" style="margin: 0;">⚔️ Màn Hình Chiến Đấu</h3>
@@ -203,6 +247,7 @@
                 style="text-align: center; margin-top: 10px; background: #ff4757;">Đóng</button>
         </div>
     </div>
+
     <!-- MODAL XEM CHI TIẾT POKÉMON -->
     <div id="poke-detail-modal" class="modal">
         <div class="modal-content" style="max-width: 550px; text-align: left;">
@@ -215,17 +260,13 @@
             <!-- THÔNG SỐ CƠ BẢN -->
             <div style="margin: 15px 0;">
                 <h4 style="color: #f5c518; margin-bottom: 8px;">📊 Thông Số Chi Tiết</h4>
-                <div id="modal-poke-stats" class="detail-stats-grid">
-                    <!-- Nội dung stats sẽ tự động inject bằng JS -->
-                </div>
+                <div id="modal-poke-stats" class="detail-stats-grid"></div>
             </div>
 
             <!-- DANH SÁCH CHIÊU THỨC -->
             <div style="margin: 15px 0;">
                 <h4 style="color: #f5c518; margin-bottom: 8px;">🔥 Chiêu Thức Sở Hữu</h4>
-                <div id="modal-poke-skills" style="display: flex; flex-direction: column; gap: 8px;">
-                    <!-- Nội dung skills sẽ tự động inject bằng JS -->
-                </div>
+                <div id="modal-poke-skills" style="display: flex; flex-direction: column; gap: 8px;"></div>
             </div>
 
             <div style="text-align: center; margin-top: 20px;">
@@ -233,10 +274,12 @@
                     style="background: #57577d; width: 100%;">ĐÓNG</button>
             </div>
         </div>
-    </div>\
-    <!-- NHÚNG FILE SCRIPT -->
+    </div>
+
+    <!-- NHÚNG FILE SCRIPT THEO ĐÚNG THỨ TỰ -->
     <script src="pokemonData.js"></script>
     <script src="campaigns.js"></script>
+    <script src="gacha.js"></script>\
     <script src="app.js"></script>
 </body>
 

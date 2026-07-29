@@ -464,3 +464,7 @@ h1, h2, h3 {
     margin-top: 4px;
     font-size: 12px;
 }
+/* Hiển thị danh sách các badge hiệu ứng */
+.effect-buff_atk { background: #ff7675; color: #fff; }
+.effect-buff_def { background: #0984e3; color: #fff; }
+.effect-debuff_def { background: #6c5ce7; color: #fff; }

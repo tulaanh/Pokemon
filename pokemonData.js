@@ -1,4 +1,8 @@
-// --- TYPE ADVANTAGE MATRIX ---
+// ==========================================
+// POKEMON DATA & SKILL TEMPLATES MODULE
+// ==========================================
+
+// --- BẢNG TƯƠNG TÁC HỆ ---
 const TYPE_CHART = {
     Fire: { Grass: 1.5, Water: 0.75, Fire: 0.75, Rock: 0.75 },
     Water: { Fire: 1.5, Rock: 1.5, Grass: 0.75, Water: 0.75 },
@@ -7,7 +11,8 @@ const TYPE_CHART = {
     Rock: { Fire: 1.5, Electric: 1.5, Grass: 0.75, Water: 0.75 }
 };
 
-// --- DATABASE & RARITY ---
+const RARITY_LEVELS = ['Common', 'Rare', 'Epic', 'Legendary'];
+
 const RARITIES = [
     { name: 'Common', chance: 50, color: 'rarity-Common', statMult: 1.0, skillMin: 0.8, skillMax: 1.1 },
     { name: 'Rare', chance: 30, color: 'rarity-Rare', statMult: 1.3, skillMin: 1.1, skillMax: 1.4 },
@@ -15,25 +20,24 @@ const RARITIES = [
     { name: 'Legendary', chance: 5, color: 'rarity-Legendary', statMult: 2.2, skillMin: 1.9, skillMax: 2.5 }
 ];
 
-// Mới: Thêm thuộc tính innateSkill1 cho từng Pokémon
+// --- CÁC LOÀI POKEMON (BAO GỒM DEF) ---
 const POKEMON_SPECIES = [
-    { name: 'Charmander', type: 'Fire', baseHp: 110, baseAtk: 22, baseSpeed: 115, baseInitMp: 30, innateSkill1: { name: 'Mồi Lửa Tẩy Náo', basePower: 24, cost: 20, cd: 1, category: 'damage', effect: { type: 'burn', duration: 3, val: 12, name: 'Thiêu Đốt Bẩm Sinh' } } },
-    { name: 'Magmar', type: 'Fire', baseHp: 125, baseAtk: 25, baseSpeed: 105, baseInitMp: 25, innateSkill1: { name: 'Giáp Nham Thạch', baseShield: 35, cost: 25, cd: 2, category: 'shield', effect: { type: 'burn', duration: 2, val: 15, name: 'Phản Ứng Nhiệt' } } },
-    { name: 'Squirtle', type: 'Water', baseHp: 130, baseAtk: 18, baseSpeed: 95, baseInitMp: 20, innateSkill1: { name: 'Rút Vào Mai Vỏ', baseShield: 40, cost: 20, cd: 2, category: 'shield' } },
-    { name: 'Psyduck', type: 'Water', baseHp: 120, baseAtk: 21, baseSpeed: 100, baseInitMp: 30, innateSkill1: { name: 'Sóng Niệm Lực Water', basePower: 28, cost: 25, cd: 1, category: 'damage', effect: { type: 'slow', duration: 2, val: 35, name: 'Choáng Tốc 35%' } } },
-    { name: 'Bulbasaur', type: 'Grass', baseHp: 120, baseAtk: 20, baseSpeed: 100, baseInitMp: 25, innateSkill1: { name: 'Hạt Giống Ký Sinh Bẩm Sinh', baseHeal: 25, cost: 20, cd: 2, category: 'heal' } },
-    { name: 'Oddish', type: 'Grass', baseHp: 115, baseAtk: 19, baseSpeed: 90, baseInitMp: 20, innateSkill1: { name: 'Bột Gai Phản Đòn', baseShield: 28, cost: 20, cd: 2, category: 'shield', effect: { type: 'thorn', duration: 3, val: 35, name: 'Giáp Gai Bẩm Sinh' } } },
-    { name: 'Pikachu', type: 'Electric', baseHp: 95, baseAtk: 26, baseSpeed: 140, baseInitMp: 40, innateSkill1: { name: 'Điện Giật Tinh Anh', basePower: 30, cost: 25, cd: 1, category: 'damage', effect: { type: 'shock', duration: 2, val: 15, name: 'Sốc Điện Đặt Biệt' } } },
-    { name: 'Voltorb', type: 'Electric', baseHp: 90, baseAtk: 23, baseSpeed: 150, baseInitMp: 35, innateSkill1: { name: 'Tĩnh Điện Tốc Độ', baseShield: 30, cost: 20, cd: 2, category: 'shield' } },
-    { name: 'Geodude', type: 'Rock', baseHp: 210, baseAtk: 17, baseSpeed: 75, baseInitMp: 15, innateSkill1: { name: 'Cứng Như Đá Cổ', baseShield: 50, cost: 20, cd: 2, category: 'shield' } },
-    { name: 'Onix', type: 'Rock', baseHp: 280, baseAtk: 21, baseSpeed: 80, baseInitMp: 20, innateSkill1: { name: 'Đá Đè Đất Cổ', basePower: 26, cost: 25, cd: 1, category: 'damage', effect: { type: 'slow', duration: 2, val: 30, name: 'Trì Trệ 30%' } } },
-    { name: 'Rattata', type: 'Grass', baseHp: 90, baseAtk: 16, baseSpeed: 110, baseInitMp: 20, innateSkill1: { name: 'Cắn Răng Nhanh', basePower: 22, cost: 15, cd: 1, category: 'damage' } },
-    { name: 'Pidgey', type: 'Electric', baseHp: 100, baseAtk: 18, baseSpeed: 120, baseInitMp: 20, innateSkill1: { name: 'Cánh Điện Nhẹ', basePower: 20, cost: 15, cd: 1, category: 'damage', effect: { type: 'shock', duration: 1, val: 10, name: 'Giật Nhẹ' } } },
-    { name: 'Machop', type: 'Fire', baseHp: 140, baseAtk: 24, baseSpeed: 85, baseInitMp: 20, innateSkill1: { name: 'Cú Đấm Nhiệt Lực', basePower: 27, cost: 20, cd: 1, category: 'damage' } }
+    { name: 'Charmander', type: 'Fire', baseHp: 110, baseAtk: 22, baseDef: 15, baseSpeed: 115, baseInitMp: 30 },
+    { name: 'Magmar', type: 'Fire', baseHp: 125, baseAtk: 25, baseDef: 18, baseSpeed: 105, baseInitMp: 25 },
+    { name: 'Squirtle', type: 'Water', baseHp: 130, baseAtk: 18, baseDef: 25, baseSpeed: 95, baseInitMp: 20 },
+    { name: 'Psyduck', type: 'Water', baseHp: 120, baseAtk: 21, baseDef: 16, baseSpeed: 100, baseInitMp: 30 },
+    { name: 'Bulbasaur', type: 'Grass', baseHp: 120, baseAtk: 20, baseDef: 20, baseSpeed: 100, baseInitMp: 25 },
+    { name: 'Oddish', type: 'Grass', baseHp: 115, baseAtk: 19, baseDef: 17, baseSpeed: 90, baseInitMp: 20 },
+    { name: 'Pikachu', type: 'Electric', baseHp: 95, baseAtk: 26, baseDef: 12, baseSpeed: 140, baseInitMp: 40 },
+    { name: 'Voltorb', type: 'Electric', baseHp: 90, baseAtk: 23, baseDef: 14, baseSpeed: 150, baseInitMp: 35 },
+    { name: 'Geodude', type: 'Rock', baseHp: 210, baseAtk: 17, baseDef: 40, baseSpeed: 75, baseInitMp: 15 },
+    { name: 'Onix', type: 'Rock', baseHp: 280, baseAtk: 21, baseDef: 55, baseSpeed: 80, baseInitMp: 20 },
+    { name: 'Rattata', type: 'Grass', baseHp: 90, baseAtk: 16, baseDef: 10, baseSpeed: 110, baseInitMp: 20 },
+    { name: 'Pidgey', type: 'Electric', baseHp: 100, baseAtk: 18, baseDef: 12, baseSpeed: 120, baseInitMp: 20 },
+    { name: 'Machop', type: 'Fire', baseHp: 140, baseAtk: 24, baseDef: 22, baseSpeed: 85, baseInitMp: 20 }
 ];
 
-// Kho Kỹ Năng Học Mở Rộng
-// Kho Kỹ Năng Phân Cấp Theo Độ Hiếm
+// --- KHO KỸ NĂNG NGUYÊN TỐ (ĐÃ KHẮC PHỤC LỖI UNDEFINED & BỔ SUNG SÁT THƯƠNG CHUẨN/BUFF) ---
 const ELEMENTAL_SKILL_TEMPLATES = {
     Fire: {
         Basic: [
@@ -41,110 +45,85 @@ const ELEMENTAL_SKILL_TEMPLATES = {
         ],
         Skill1: [
             { name: 'Tia Lửa Nhỏ', rarity: 'Common', basePower: 20, cost: 15, cd: 1, category: 'damage', effect: { type: 'burn', duration: 2, val: 8, name: 'Bỏng Nhẹ' } },
-            { name: 'Tia Lửa Đốt Bỏng', rarity: 'Rare', basePower: 28, cost: 20, cd: 1, category: 'damage', effect: { type: 'burn', duration: 3, val: 14, name: 'Thiêu Đốt' } },
+            { name: 'Cuồng Nổ Hỏa Lực', rarity: 'Rare', cost: 20, cd: 2, category: 'buff', effect: { type: 'buff_atk', duration: 2, val: 30, name: 'Tăng 30% ATK' } },
             { name: 'Lớp Giáp Nhiệt', rarity: 'Rare', baseShield: 35, cost: 20, cd: 2, category: 'shield' },
-            { name: 'Bảo Hộ Hỏa Thần', rarity: 'Epic', baseShield: 55, cost: 25, cd: 2, category: 'shield', effect: { type: 'burn', duration: 2, val: 18, name: 'Bỏng Phản Phệ' } }
+            { name: 'Thiêu Rụi Giáp', rarity: 'Epic', basePower: 30, cost: 25, cd: 2, category: 'damage', effect: { type: 'debuff_def', duration: 2, val: 35, name: 'Phá Giáp 35%' } }
         ],
         Skill2: [
             { name: 'Phun Lửa', rarity: 'Common', basePower: 35, cost: 35, cd: 2, category: 'damage' },
-            { name: 'Phun Lửa Lớn', rarity: 'Rare', basePower: 48, cost: 40, cd: 2, category: 'damage', effect: { type: 'burn', duration: 3, val: 16, name: 'Thiêu Đốt' } },
+            { name: 'Hỏa Xuyên Phá', rarity: 'Rare', basePower: 40, cost: 40, cd: 2, category: 'true_damage', isTrueDmg: true },
             { name: 'Vòng Lửa Hồi Phục', rarity: 'Rare', baseHeal: 40, cost: 40, cd: 3, category: 'heal' },
-            { name: 'Bùng Nổ Nhiệt Lượng', rarity: 'Epic', basePower: 68, cost: 50, cd: 3, category: 'damage', effect: { type: 'burn', duration: 3, val: 24, name: 'Thiêu Đốt Báo Thù' } },
-            { name: 'Hỏa Cầu Hủy Diệt', rarity: 'Legendary', basePower: 90, cost: 55, cd: 2, category: 'damage', effect: { type: 'burn', duration: 4, val: 32, name: 'Hỏa Ngục Chấn Động' } }
+            { name: 'Bùng Nổ Nhiệt Lượng', rarity: 'Epic', basePower: 68, cost: 50, cd: 3, category: 'damage', effect: { type: 'burn', duration: 3, val: 24, name: 'Thiêu Đốt' } }
         ],
         Ultimate: [
             { name: 'Bão Lửa Tập Kích', rarity: 'Rare', basePower: 75, cost: 75, cd: 3, category: 'damage' },
-            { name: 'Rồng Lửa Hủy Diệt', rarity: 'Epic', basePower: 105, cost: 80, cd: 3, category: 'damage', effect: { type: 'burn', duration: 4, val: 30, name: 'Thiêu Đốt Cuồng Nổ' } },
-            { name: 'Bão Lửa Địa Ngục', rarity: 'Legendary', basePower: 140, cost: 90, cd: 3, category: 'damage', effect: { type: 'burn', duration: 4, val: 40, name: 'Địa Ngục Thiêu Rụi' } }
+            { name: 'Hỏa Ngục Bộc Phá', rarity: 'Epic', basePower: 80, cost: 85, cd: 3, category: 'true_damage', isTrueDmg: true },
+            { name: 'Bão Lửa Địa Ngục', rarity: 'Legendary', basePower: 140, cost: 90, cd: 3, category: 'damage', effect: { type: 'burn', duration: 4, val: 40, name: 'Địa Ngục' } }
         ]
     },
     Water: {
-        Basic: [
-            { name: 'Đòn Nước Nhẹ', rarity: 'Common', basePower: 10, cost: 0, cd: 0, mpGain: 25, category: 'damage' }
+        Basic: [ 
+            { name: 'Đòn Nước Nhẹ', rarity: 'Common', basePower: 10, cost: 0, cd: 0, mpGain: 25, category: 'damage' } 
         ],
         Skill1: [
             { name: 'Bóng Nước', rarity: 'Common', basePower: 18, cost: 15, cd: 1, category: 'damage', effect: { type: 'slow', duration: 2, val: 20, name: 'Giảm Tốc 20%' } },
-            { name: 'Bóng Nước Làm Chậm', rarity: 'Rare', basePower: 26, cost: 20, cd: 1, category: 'damage', effect: { type: 'slow', duration: 2, val: 35, name: 'Giảm Tốc 35%' } },
-            { name: 'Khiên Bong Bóng', rarity: 'Rare', baseShield: 35, cost: 20, cd: 2, category: 'shield' },
-            { name: 'Thủy Giáp Kiên Cố', rarity: 'Epic', baseShield: 58, cost: 25, cd: 2, category: 'shield' }
+            { name: 'Thủy Giáp Bảo Hộ', rarity: 'Rare', baseShield: 30, cost: 20, cd: 2, category: 'shield', effect: { type: 'buff_def', duration: 2, val: 40, name: 'Tăng 40% DEF' } }
         ],
         Skill2: [
             { name: 'Dòng Nước Xoáy', rarity: 'Common', basePower: 34, cost: 35, cd: 2, category: 'damage' },
-            { name: 'Thủy Pháo Làm Băng', rarity: 'Rare', basePower: 46, cost: 40, cd: 2, category: 'damage', effect: { type: 'slow', duration: 3, val: 40, name: 'Giảm Tốc 40%' } },
-            { name: 'Dòng Sống Hồi Sinh', rarity: 'Rare', baseHeal: 42, cost: 45, cd: 3, category: 'heal' },
-            { name: 'Thủy Giáp Bảo Hộ', rarity: 'Epic', baseShield: 65, cost: 40, cd: 3, category: 'shield' },
-            { name: 'Dòng Nước Xiết Cuồng Phong', rarity: 'Legendary', basePower: 88, cost: 50, cd: 2, category: 'damage', effect: { type: 'slow', duration: 3, val: 55, name: 'Giảm Tốc Siêu Cấp 55%' } }
+            { name: 'Thủy Áp Xuyên Thấu', rarity: 'Epic', basePower: 50, cost: 45, cd: 2, category: 'true_damage', isTrueDmg: true }
         ],
         Ultimate: [
-            { name: 'Sóng Thần Đột Kích', rarity: 'Rare', basePower: 70, cost: 70, cd: 3, category: 'damage' },
-            { name: 'Sóng Thần Cuồng Nổ', rarity: 'Epic', basePower: 100, cost: 80, cd: 3, category: 'damage', effect: { type: 'slow', duration: 3, val: 50, name: 'Giảm Tốc 50%' } },
+            { name: 'Sóng Thần Cuồng Nổ', rarity: 'Epic', basePower: 100, cost: 80, cd: 3, category: 'damage' },
             { name: 'Đại Dương Phục Sinh', rarity: 'Legendary', baseHeal: 110, baseShield: 60, cost: 85, cd: 4, category: 'heal' }
         ]
     },
     Grass: {
-        Basic: [
-            { name: 'Roi Gai Cơ Bản', rarity: 'Common', basePower: 11, cost: 0, cd: 0, mpGain: 25, category: 'damage' }
+        Basic: [ 
+            { name: 'Roi Gai Cơ Bản', rarity: 'Common', basePower: 11, cost: 0, cd: 0, mpGain: 25, category: 'damage' } 
         ],
         Skill1: [
-            { name: 'Lá Sắc Nhọn', rarity: 'Common', basePower: 22, cost: 15, cd: 1, category: 'damage' },
-            { name: 'Áo Giáp Gai Phản Đòn', rarity: 'Rare', baseShield: 30, cost: 20, cd: 2, category: 'shield', effect: { type: 'thorn', duration: 3, val: 30, name: 'Giáp Gai (30% Reflect)' } },
-            { name: 'Thạch Mộc Hộ Thể', rarity: 'Epic', baseShield: 52, cost: 25, cd: 2, category: 'shield', effect: { type: 'thorn', duration: 3, val: 45, name: 'Giáp Gai Cao Cấp 45%' } }
+            { name: 'Gai Tẩy Cực', rarity: 'Rare', basePower: 25, cost: 20, cd: 2, category: 'true_damage', isTrueDmg: true },
+            { name: 'Áo Giáp Gai Phản Đòn', rarity: 'Rare', baseShield: 30, cost: 20, cd: 2, category: 'shield', effect: { type: 'thorn', duration: 3, val: 30, name: 'Giáp Gai 30%' } }
         ],
         Skill2: [
-            { name: 'Bão Lá Tấn Công', rarity: 'Common', basePower: 36, cost: 35, cd: 2, category: 'damage' },
             { name: 'Hạt Giống Ký Sinh', rarity: 'Rare', baseHeal: 45, cost: 40, cd: 3, category: 'heal' },
-            { name: 'Vỏ Cây Giáp Gai Cổ Thụ', rarity: 'Rare', baseShield: 45, cost: 35, cd: 3, category: 'shield', effect: { type: 'thorn', duration: 3, val: 40, name: 'Giáp Gai (40% Reflect)' } },
-            { name: 'Rễ Cây Cổ Thụ', rarity: 'Epic', baseShield: 65, cost: 40, cd: 3, category: 'shield', effect: { type: 'thorn', duration: 3, val: 55, name: 'Giáp Gai Cổ Thụ (55% Reflect)' } },
-            { name: 'Xung Kích Rừng Cổ', rarity: 'Legendary', basePower: 85, cost: 50, cd: 2, category: 'damage', effect: { type: 'thorn', duration: 4, val: 65, name: 'Bão Gai Cuồng Nổ 65%' } }
+            { name: 'Tăng Trưởng Sinh Mệnh', rarity: 'Epic', cost: 35, cd: 3, category: 'buff', effect: { type: 'buff_def', duration: 3, val: 50, name: 'Tăng 50% DEF' } }
         ],
         Ultimate: [
-            { name: 'Mưa Lá Cuồng Phong', rarity: 'Rare', basePower: 72, cost: 75, cd: 3, category: 'damage' },
-            { name: 'Cuồng Phong Thực Vật', rarity: 'Epic', basePower: 102, cost: 80, cd: 3, category: 'damage' },
-            { name: 'Thần Rừng Hồi Sinh', rarity: 'Legendary', baseHeal: 105, baseShield: 70, cost: 85, cd: 4, category: 'heal' }
+            { name: 'Cuồng Phong Thực Vật', rarity: 'Epic', basePower: 102, cost: 80, cd: 3, category: 'damage' }
         ]
     },
     Electric: {
-        Basic: [
-            { name: 'Chớp Điện', rarity: 'Common', basePower: 14, cost: 0, cd: 0, mpGain: 25, category: 'damage' }
+        Basic: [ 
+            { name: 'Chớp Điện', rarity: 'Common', basePower: 14, cost: 0, cd: 0, mpGain: 25, category: 'damage' } 
         ],
         Skill1: [
             { name: 'Tia Điện Tê Liệt', rarity: 'Common', basePower: 20, cost: 15, cd: 1, category: 'damage', effect: { type: 'shock', duration: 1, val: 10, name: 'Giật Nhẹ' } },
-            { name: 'Sốc Điện Tê Liệt', rarity: 'Rare', basePower: 28, cost: 20, cd: 1, category: 'damage', effect: { type: 'shock', duration: 2, val: 16, name: 'Nhiễm Điện' } },
-            { name: 'Trường Điện Từ', rarity: 'Rare', baseShield: 30, cost: 20, cd: 2, category: 'shield' },
-            { name: 'Lôi Giáp Cuồng Bộc', rarity: 'Epic', baseShield: 50, cost: 25, cd: 2, category: 'shield' }
+            { name: 'Quá Tải Điện Cấp', rarity: 'Rare', cost: 20, cd: 2, category: 'buff', effect: { type: 'buff_atk', duration: 2, val: 20, name: 'Tăng 20% ATK' } },
+            { name: 'Điện 100 ngày volt', rarity: 'Epic', basePower: 45, cost: 40, cd: 5, category: 'damage', effect: { type: 'shock', duration: 5, val: 50, name: 'Giật tê tê' } }
         ],
         Skill2: [
-            { name: 'Tia Sét Xung Kích', rarity: 'Common', basePower: 38, cost: 35, cd: 2, category: 'damage' },
-            { name: 'Sấm Sét Liên Hoàn', rarity: 'Rare', basePower: 52, cost: 45, cd: 2, category: 'damage', effect: { type: 'shock', duration: 3, val: 20, name: 'Nhiễm Điện' } },
-            { name: 'Quả Cầu Tĩnh Điện', rarity: 'Epic', basePower: 70, cost: 50, cd: 3, category: 'damage', effect: { type: 'shock', duration: 3, val: 28, name: 'Sốc Điện Cao Cấp' } },
-            { name: 'Ma Trận Sấm Sét', rarity: 'Legendary', basePower: 92, cost: 55, cd: 2, category: 'damage', effect: { type: 'shock', duration: 3, val: 38, name: 'Bào Máu Tĩnh Điện' } }
+            { name: 'Tia Xuyên Lôi', rarity: 'Epic', basePower: 55, cost: 45, cd: 2, category: 'true_damage', isTrueDmg: true }
         ],
         Ultimate: [
-            { name: 'Tia Sét Hoàng Gia', rarity: 'Rare', basePower: 78, cost: 75, cd: 3, category: 'damage' },
-            { name: 'Thiên Lôi Hủy Diệt', rarity: 'Epic', basePower: 108, cost: 85, cd: 3, category: 'damage', effect: { type: 'shock', duration: 3, val: 32, name: 'Sốc Điện Nặng' } },
-            { name: 'Bão Điện Siêu Cấp', rarity: 'Legendary', basePower: 130, cost: 95, cd: 3, category: 'damage', effect: { type: 'shock', duration: 3, val: 42, name: 'Sốc Điện Tận Diệt' } }
+            { name: 'Thiên Lôi Hủy Diệt', rarity: 'Epic', basePower: 108, cost: 85, cd: 3, category: 'damage' }
         ]
     },
     Rock: {
-        Basic: [
-            { name: 'Ném Đá Cổ Đại', rarity: 'Common', basePower: 15, cost: 0, cd: 0, mpGain: 25, category: 'damage' }
+        Basic: [ 
+            { name: 'Ném Đá Cổ Đại', rarity: 'Common', basePower: 15, cost: 0, cd: 0, mpGain: 25, category: 'damage' } 
         ],
         Skill1: [
-            { name: 'Đá Lăn', rarity: 'Common', basePower: 20, cost: 15, cd: 1, category: 'damage' },
-            { name: 'Đá Lăn Giảm Tốc', rarity: 'Rare', basePower: 26, cost: 20, cd: 1, category: 'damage', effect: { type: 'slow', duration: 2, val: 25, name: 'Giảm Tốc 25%' } },
-            { name: 'Vạn Lý Thạch Giáp', rarity: 'Rare', baseShield: 40, cost: 20, cd: 2, category: 'shield' },
-            { name: 'Thạch Kim Hộ Thể', rarity: 'Epic', baseShield: 65, cost: 25, cd: 2, category: 'shield' }
+            { name: 'Kiên Cố Thạch Giáp', rarity: 'Common', cost: 15, cd: 2, category: 'buff', effect: { type: 'buff_def', duration: 3, val: 40, name: 'Tăng 40% DEF' } },
+            { name: 'Vạn Lý Thạch Giáp', rarity: 'Rare', baseShield: 40, cost: 20, cd: 2, category: 'shield' }
         ],
         Skill2: [
-            { name: 'Oanh Kích Đá', rarity: 'Common', basePower: 35, cost: 35, cd: 2, category: 'damage' },
-            { name: 'Giáp Đá Thạch Anh', rarity: 'Rare', baseShield: 55, cost: 35, cd: 3, category: 'shield', effect: { type: 'thorn', duration: 3, val: 35, name: 'Giáp Gai (35% Reflect)' } },
-            { name: 'Địa Mộc Oanh Kích', rarity: 'Epic', basePower: 68, cost: 45, cd: 3, category: 'damage', effect: { type: 'slow', duration: 2, val: 35, name: 'Đập Đá Giảm Tốc' } },
-            { name: 'Thạch Giáp Độc Tố', rarity: 'Legendary', baseShield: 90, cost: 40, cd: 3, category: 'shield', effect: { type: 'thorn', duration: 3, val: 60, name: 'Phản Đòn Đá Gai 60%' } }
+            { name: 'Địa Chấn Nhẹ', rarity: 'Common', basePower: 38, cost: 35, cd: 2, category: 'damage' },
+            { name: 'Phá Giáp Thạch Anh', rarity: 'Epic', basePower: 45, cost: 40, cd: 2, category: 'damage', effect: { type: 'debuff_def', duration: 3, val: 50, name: 'Giảm 50% DEF' } }
         ],
         Ultimate: [
-            { name: 'Đá Rơi Cuồng Nổ', rarity: 'Rare', basePower: 70, cost: 70, cd: 3, category: 'damage' },
-            { name: 'Địa Shaking Hủy Diệt', rarity: 'Epic', basePower: 112, cost: 85, cd: 3, category: 'damage' },
-            { name: 'Vạn Lý Trường Thành', rarity: 'Legendary', baseShield: 140, cost: 90, cd: 4, category: 'shield', effect: { type: 'thorn', duration: 4, val: 70, name: 'Phản Đòn Đá Cổ Cấp 70%' } }
+            { name: 'Động Đất Tận Diệt', rarity: 'Legendary', basePower: 145, cost: 95, cd: 3, category: 'damage' }
         ]
     }
 };
