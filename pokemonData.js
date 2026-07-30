@@ -11,15 +11,17 @@ const TYPE_CHART = {
     Rock: { Fire: 1.5, Electric: 1.5, Grass: 0.75, Water: 0.75 }
 };
 
-const RARITY_LEVELS = ['Common', 'Rare', 'Epic', 'Legendary'];
-
+const RARITY_LEVELS = ['Common', 'Rare', 'Epic', 'Legendary', 'Mythic', 'Secret'];
+// --- CẬP NHẬT CHỈ SỐ ĐỘ HIẾM ---
+// --- CẬP NHẬT CHỈ SỐ ĐỘ HIẾM TẠI MODULE POKEMON DATA ---
 const RARITIES = [
-    { name: 'Common', chance: 50, color: 'rarity-Common', statMult: 1.0, skillMin: 0.8, skillMax: 1.1 },
-    { name: 'Rare', chance: 30, color: 'rarity-Rare', statMult: 1.3, skillMin: 1.1, skillMax: 1.4 },
-    { name: 'Epic', chance: 15, color: 'rarity-Epic', statMult: 1.6, skillMin: 1.4, skillMax: 1.8 },
-    { name: 'Legendary', chance: 5, color: 'rarity-Legendary', statMult: 2.2, skillMin: 1.9, skillMax: 2.5 }
+    { name: 'Common', color: 'rarity-Common', statMult: 1.0, chance: 50.0, skillMin: 0.9, skillMax: 1.1 },
+    { name: 'Rare', color: 'rarity-Rare', statMult: 1.2, chance: 30.0, skillMin: 1.1, skillMax: 1.3 },
+    { name: 'Epic', color: 'rarity-Epic', statMult: 1.5, chance: 15.0, skillMin: 1.3, skillMax: 1.6 },
+    { name: 'Legendary', color: 'rarity-Legendary', statMult: 2.0, chance: 4.0, skillMin: 1.6, skillMax: 2.0 },
+    { name: 'Mythic', color: 'rarity-Mythic', statMult: 3.0, chance: 0.9, skillMin: 2.0, skillMax: 2.5 },
+    { name: 'Secret', color: 'rarity-Secret', statMult: 5.0, chance: 0.1, skillMin: 2.5, skillMax: 3.5 }
 ];
-
 // --- CÁC LOÀI POKEMON (BAO GỒM DEF) ---
 const POKEMON_SPECIES = [
     { name: 'Charmander', type: 'Fire', baseHp: 110, baseAtk: 22, baseDef: 15, baseSpeed: 115, baseInitMp: 30 },

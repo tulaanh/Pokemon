@@ -468,3 +468,49 @@ h1, h2, h3 {
 .effect-buff_atk { background: #ff7675; color: #fff; }
 .effect-buff_def { background: #0984e3; color: #fff; }
 .effect-debuff_def { background: #6c5ce7; color: #fff; }
+/* Màu Đỏ rực rỡ cho Mythic */
+.rarity-Mythic { 
+    color: #ff4757 !important; 
+    font-weight: bold;
+    text-shadow: 0 0 8px rgba(255, 71, 87, 0.8); 
+}
+
+/* Màu Đen kèm viền sáng trắng/đỏ cho Secret (để nhìn rõ trên nền đen) */
+.rarity-Secret { 
+    color: #000000 !important; 
+    font-weight: 900;
+    text-shadow: 
+        -1px -1px 0 #fff,  
+         1px -1px 0 #fff,
+        -1px  1px 0 #fff,
+         1px  1px 0 #fff,
+         0 0 10px #ff0000; /* Tỏa hào quang đỏ */
+    letter-spacing: 1px;
+}
+/* Quản lý hiển thị */
+.game-scene {
+    display: none; /* Ẩn tất cả theo mặc định */
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.game-scene.active {
+    display: block; /* Hoặc flex tùy theo thiết kế layout của bạn */
+}
+
+/* Hiệu ứng chuyển cảnh */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Trang trí sơ bộ cho màn hình chuẩn bị */
+.prep-layout {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+}
+.enemy-preview-panel, .player-team-panel {
+    border: 1px solid #444;
+    padding: 15px;
+    width: 48%;
+}
