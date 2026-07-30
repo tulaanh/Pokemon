@@ -15,8 +15,7 @@
         <header>
             <h1>⚡ Pokémon Engine ⚡</h1>
             <div class="resource-bar">
-                💎 Gem: <span id="gem-count">10000</span>
-            </div>
+                💎 Gem: <span id="gem-count">10000</span> | 💰 Vàng: <span id="gold-count">0</span> </div>
         </header>
 
         <!-- THANH TABS -->
@@ -25,6 +24,9 @@
             <button class="tab-btn" onclick="switchTab('roster-tab')">🎒 ĐỘI HÌNH</button>
             <button class="tab-btn" onclick="switchTab('merge-tab')">🧬 HỢP NHẤT</button>
             <button class="tab-btn" onclick="switchTab('campaign-tab')">⚔️ CHIẾN DỊCH</button>
+            <button class="tab-btn" onclick="switchTab('shop-tab')">🛒 CỬA HÀNG</button>
+            <button class="tab-btn" onclick="switchTab('inventory-tab')">📦 KHO ĐỒ</button>
+            <button class="tab-btn" onclick="switchTab('gym-tab')">🏟️ PHÒNG GYM</button>
         </div>
 
         <!-- TAB 1: GACHA -->
@@ -58,10 +60,11 @@
                         oninput="onSearchChange(this.value)">
                     <select id="roster-sort" onchange="onSortChange(this.value)">
                         <option value="default">-- Sắp xếp --</option>
+                        <option value="level-desc">Cấp độ (Cao -> Thấp)</option>
+                        <option value="level-asc">Cấp độ (Thấp -> Cao)</option>
                         <option value="rarity-desc">Độ hiếm (Cao -> Thấp)</option>
                         <option value="rarity-asc">Độ hiếm (Thấp -> Cao)</option>
                         <option value="type">Theo Hệ (Type)</option>
-                        <option value="level-desc">Cấp độ (Cao -> Thấp)</option>
                     </select>
                 </div>
 
@@ -99,9 +102,7 @@
         </div>
 
         <!-- TAB 4: CAMPAIGN BATTLE -->
-        <!-- TAB 4: CAMPAIGN BATTLE -->
         <div id="campaign-tab" class="tab-content">
-
             <!-- ================= SCENE 1: BẢN ĐỒ ================= -->
             <div id="scene-campaign-list" class="game-scene active card" style="margin-bottom: 15px;">
                 <h3>MAP Chọn Màn Chiến Dịch</h3>
@@ -215,6 +216,161 @@
                 </div>
             </div>
         </div>
+        <!-- TAB 5: CỬA HÀNG -->
+        <div id="shop-tab" class="tab-content">
+            <div class="card" style="max-width: 500px; margin: 0 auto; text-align: center;">
+                <h3>🛒 Cửa Hàng Vật Phẩm</h3>
+                <div
+                    style="background: #181825; padding: 20px; border-radius: 8px; border: 1px solid #3f3f5a; margin-top: 15px;">
+                    <h4 style="color: #e056fd; margin-top: 0; font-size: 18px;">🍬 Kẹo Kinh Nghiệm (Rare Candy)</h4>
+                    <p style="font-size: 13px; color: #a6adc8; margin: 10px 0;">Tăng ngay <b>1 cấp</b> cho Pokémon chọn
+                        lựa (Cấp < 90).</p>
+                            <p style="font-size: 14px;">Trong kho có: <b id="shop-candy-count"
+                                    style="color: #e056fd;">0</b> viên</p>
+                            <p style="font-size: 16px; font-weight: bold; color: #f5c518; margin: 15px 0;">Giá: 1,000 💰
+                                Vàng / viên</p>
+
+                            <div style="display: flex; gap: 10px; justify-content: center;">
+                                <button class="gacha-btn" onclick="buyRareCandy(1)">Mua x1</button>
+                                <button class="gacha-btn" onclick="buyRareCandy(5)"
+                                    style="background: linear-gradient(45deg, #00b4d8, #0077b6);">Mua x5</button>
+                                <button class="gacha-btn" onclick="buyRareCandy(10)"
+                                    style="background: linear-gradient(45deg, #9b59b6, #8e44ad);">Mua x10</button>
+                            </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 6: KHO ĐỒ -->
+        <div id="inventory-tab" class="tab-content">
+            <div class="card" style="max-width: 500px; margin: 0 auto; text-align: center;">
+                <h3>📦 Kho Vật Phẩm</h3>
+                <div
+                    style="background: #181825; padding: 20px; border-radius: 8px; border: 1px solid #3f3f5a; margin-top: 15px;">
+                    <h4 style="color: #e056fd; margin-top: 0;">🍬 Kẹo Kinh Nghiệm</h4>
+                    <p style="font-size: 16px;">Số lượng: <b id="inv-candy-count"
+                            style="color: #e056fd; font-size: 22px;">0</b> viên</p>
+                    <button class="gacha-btn" onclick="openUseCandyModal()" style="margin-top: 10px;">🍬 Sử Dụng
+                        Kẹo</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 7: PHÒNG GYM -->
+        <!-- TAB 7: PHÒNG GYM (ĐÃ NÂNG CẤP 3 SCENE) -->
+        <div id="gym-tab" class="tab-content">
+            <!-- SCENE 1: DANH SÁCH PHÒNG GYM -->
+            <div id="gym-scene-list" class="gym-scene active card">
+                <h3>🏟️ Hệ Thống Phòng Gym</h3>
+                <p style="color: #a6adc8; font-size: 14px; margin-bottom: 20px;">
+                    Chỉ các Pokémon cùng hệ mới được tham gia. Vượt ải 5 để nhận <b>Buff 10% chỉ số vĩnh viễn</b> cho hệ
+                    đó!
+                </p>
+                <div id="gym-list-container" class="gym-grid">
+                    <!-- JS sẽ tự động render danh sách Gym vào đây -->
+                </div>
+            </div>
+
+            <!-- SCENE 2: CHUẨN BỊ CHIẾN ĐẤU GYM -->
+            <div id="gym-scene-prep" class="gym-scene card" style="border: 1px solid #f5c518;">
+                <button class="gacha-btn" onclick="switchGymScene('gym-scene-list')"
+                    style="width: auto; padding: 5px 15px; margin-bottom: 15px; background: #57577d;">
+                    ⬅ Quay Lại Danh Sách Gym
+                </button>
+
+                <h3 id="gym-prep-title" style="margin: 0; color: #f5c518;">🏟️ Thông Tin Phòng Gym</h3>
+                <p id="gym-prep-desc" style="color: #aaa; margin: 8px 0; font-size: 14px;">Chọn phòng Gym để xem chi
+                    tiết.</p>
+                <p id="gym-type-requirement" style="color: #ff4757; font-weight: bold; font-size: 13px;"></p>
+
+                <h4 style="margin: 15px 0 5px 0; color: #00b4d8;">🎒 Đội Hình Xuất Trận (Tối đa 3):</h4>
+                <div class="merge-slots-container" style="gap: 10px; margin: 10px 0;">
+                    <div id="gym-battle-slot-0" class="merge-slot" style="width: 100px; height: 100px;"
+                        onclick="openGymBattleSelectModal(0)">
+                        <div class="slot-placeholder">Slot 1</div>
+                    </div>
+                    <div id="gym-battle-slot-1" class="merge-slot" style="width: 100px; height: 100px;"
+                        onclick="openGymBattleSelectModal(1)">
+                        <div class="slot-placeholder">Slot 2</div>
+                    </div>
+                    <div id="gym-battle-slot-2" class="merge-slot" style="width: 100px; height: 100px;"
+                        onclick="openGymBattleSelectModal(2)">
+                        <div class="slot-placeholder">Slot 3</div>
+                    </div>
+                </div>
+
+                <div style="text-align: center; margin-top: 20px;">
+                    <button id="btn-start-gym-battle" class="gacha-btn" onclick="confirmAndStartGymBattle()"
+                        style="width: 60%; font-size: 18px;">
+                        ⚔️ BẮT ĐẦU KHIÊU CHIẾN
+                    </button>
+                </div>
+            </div>
+
+            <!-- SCENE 3: SÀN ĐẤU GYM -->
+            <div id="gym-scene-battle" class="gym-scene card">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3 id="gym-battle-title" style="margin: 0;">⚔️ Sàn Đấu Gym</h3>
+                    <div id="gym-wave-indicator" style="color: #f5c518; font-weight: bold;">HLV Lv.0</div>
+                </div>
+
+                <div class="battle-screen">
+                    <!-- Player Box -->
+                    <div class="poke-box">
+                        <span id="gym-player-type-badge" class="type-badge">--</span>
+                        <h4 id="gym-player-name" style="margin: 5px 0;">--</h4>
+                        <div id="gym-player-effects" class="effects-container"></div>
+                        <div class="hp-bar" title="Máu (HP)">
+                            <div id="gym-player-hp" class="hp-fill"></div>
+                        </div>
+                        <div class="shield-bar" title="Khiên">
+                            <div id="gym-player-shield" class="shield-fill"></div>
+                        </div>
+                        <div class="mp-bar" title="Năng lượng (MP)">
+                            <div id="gym-player-mp" class="mp-fill"></div>
+                        </div>
+                        <div class="spd-bar" title="Thanh Lượt Tốc Độ">
+                            <div id="gym-player-spd" class="spd-fill"></div>
+                        </div>
+                        <p id="gym-player-stats" class="poke-stats-text">HP: - | MP: - | SPD Gauge: -</p>
+                    </div>
+
+                    <div style="text-align: center;">
+                        <div style="font-size: 28px; font-weight: bold; color: #ff4b2b;">VS</div>
+                        <small id="gym-turn-indicator" style="color: #f5c518; font-weight: bold;">Chưa bắt đầu</small>
+                    </div>
+
+                    <!-- Enemy Box -->
+                    <div class="poke-box">
+                        <span id="gym-enemy-type-badge" class="type-badge">--</span>
+                        <h4 id="gym-enemy-name" style="margin: 5px 0;">HLV Gym</h4>
+                        <div id="gym-enemy-effects" class="effects-container"></div>
+                        <div class="hp-bar" title="Máu (HP)">
+                            <div id="gym-enemy-hp" class="hp-fill"></div>
+                        </div>
+                        <div class="shield-bar" title="Khiên">
+                            <div id="gym-enemy-shield" class="shield-fill"></div>
+                        </div>
+                        <div class="mp-bar" title="Năng lượng (MP)">
+                            <div id="gym-enemy-mp" class="mp-fill"></div>
+                        </div>
+                        <div class="spd-bar" title="Thanh Lượt Tốc Độ">
+                            <div id="gym-enemy-spd" class="spd-fill"></div>
+                        </div>
+                        <p id="gym-enemy-stats" class="poke-stats-text">HP: - | MP: - | SPD Gauge: -</p>
+                    </div>
+                </div>
+
+                <div id="gym-skills-container" class="skill-grid"></div>
+
+                <div style="text-align: center; margin-top: 15px;">
+                    <button id="btn-gym-switch-pokemon" class="gacha-btn" onclick="openGymInBattleSwitchModal()"
+                        style="background: #00b4d8; font-size: 14px; padding: 8px 15px; width: auto;">
+                        🔄 ĐỔI POKÉMON (Tốn 1 Lượt)
+                    </button>
+                </div>
+            </div>
+        </div>
         <!-- MODAL BÁO KẾT QUẢ TRẬN ĐẤU (THẮNG / THUA) -->
         <div id="result-modal" class="modal">
             <div class="modal-content" style="max-width: 450px;">
@@ -224,7 +380,26 @@
                 <button class="gacha-btn" onclick="closeResultModal()">XÁC NHẬN</button>
             </div>
         </div>
+        <!-- MODAL DÙNG KẸO KINH NGHIỆM -->
+        <div id="inventory-use-modal" class="modal-overlay"
+            style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 200; justify-content: center; align-items: center;">
+            <div class="modal-content"
+                style="background: #2b2b3d; padding: 20px; border-radius: 8px; width: 90%; max-width: 450px;">
+                <div class="modal-header"
+                    style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #57577d; padding-bottom: 10px; margin-bottom: 15px;">
+                    <h3 style="margin: 0; color: #e056fd;">🍬 Chọn Pokémon Để Dùng Kẹo</h3>
+                    <button class="close-btn" onclick="closeUseCandyModal()"
+                        style="background: none; border: none; color: #fff; font-size: 20px; cursor: pointer;">&times;</button>
+                </div>
 
+                <!-- Danh sách Pokémon sẽ render vào đây từ shop.js -->
+                <div id="candy-use-list"
+                    style="max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;"></div>
+
+                <button onclick="closeUseCandyModal()" class="choice-btn"
+                    style="text-align: center; margin-top: 15px; background: #ff4757; width: 100%;">Đóng</button>
+            </div>
+        </div>
         <!-- Battle Log -->
         <div id="log">--- Nhật ký chiến đấu ---</div>
     </div>
@@ -274,8 +449,17 @@
                 <button class="close-btn" onclick="closeBattleSelectModal()"
                     style="background: none; border: none; color: #fff; font-size: 20px; cursor: pointer;">&times;</button>
             </div>
+            <div style="margin-top: 10px;">
+                <select id="battle-sort" onchange="onBattleSortChange(this.value)"
+                    style="width: 100%; padding: 8px 12px; box-sizing: border-box; border-radius: 6px; background: #1a1a2e; color: #fff; border: 1px solid #57577d;">
+                    <option value="level-desc">Cấp độ (Cao ➔ Thấp)</option>
+                    <option value="level-asc">Cấp độ (Thấp ➔ Cao)</option>
+                    <option value="rarity-desc">Độ hiếm (Cao ➔ Thấp)</option>
+                    <option value="rarity-asc">Độ hiếm (Thấp ➔ Cao)</option>
+                </select>
+            </div>
             <div id="battle-modal-list" class="roster-grid"
-                style="max-height: 320px; overflow-y: auto; margin-top: 15px;">
+                style="max-height: 320px; overflow-y: auto; margin-top: 12px;">
                 <!-- JS render -->
             </div>
             <button onclick="clearBattleSlot()" class="choice-btn"
@@ -327,11 +511,59 @@
             </div>
         </div>
     </div>
+    <!-- MODAL CHỌN POKEMON GYM XUẤT TRẬN -->
+    <div id="gym-battle-select-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content"
+            style="background: #2b2b3d; padding: 20px; border-radius: 8px; width: 90%; max-width: 400px;">
+            <div class="modal-header"
+                style="display: flex; justify-content: space-between; border-bottom: 1px solid #57577d; padding-bottom: 10px;">
+                <h3 style="margin: 0; color: #00b4d8;">Chọn Pokémon Hệ Gym</h3>
+                <button class="close-btn" onclick="closeGymBattleSelectModal()"
+                    style="background: none; border: none; color: #fff; font-size: 20px; cursor: pointer;">&times;</button>
+            </div>
+            <div id="gym-battle-modal-list" class="roster-grid"
+                style="max-height: 320px; overflow-y: auto; margin-top: 12px;"></div>
+            <button onclick="clearGymBattleSlot()" class="choice-btn"
+                style="text-align: center; margin-top: 10px; background: #ff4757; width: 100%;">Bỏ chọn Slot
+                này</button>
+        </div>
+    </div>
 
+    <!-- MODAL ĐỔI POKEMON TRONG TRẬN GYM -->
+    <div id="gym-in-battle-switch-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content"
+            style="background: #2b2b3d; padding: 20px; border-radius: 8px; width: 90%; max-width: 400px;">
+            <h3 style="margin-top: 0; color: #00b4d8; border-bottom: 1px solid #57577d; padding-bottom: 10px;">🔄 Chọn
+                Pokémon Thay Thế</h3>
+            <div id="gym-in-battle-switch-list" class="roster-grid"
+                style="max-height: 300px; overflow-y: auto; margin-top: 15px;"></div>
+            <button onclick="closeGymInBattleSwitchModal()" class="choice-btn"
+                style="text-align: center; margin-top: 10px; background: #57577d; width: 100%;">Hủy bỏ</button>
+        </div>
+    </div>
+
+    <!-- MODAL KẾT QUẢ KHIÊU CHIẾN GYM -->
+    <div id="gym-result-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 450px;">
+            <h2 id="gym-result-title" style="margin-bottom: 10px;">🏆 THẮNG GYM!</h2>
+            <div id="gym-result-body" style="text-align: left; font-size: 14px; line-height: 1.6; margin: 15px 0;">
+            </div>
+            <button class="gacha-btn" onclick="closeGymResultModal()">XÁC NHẬN</button>
+        </div>
+    </div>
     <!-- NHÚNG FILE SCRIPT THEO ĐÚNG THỨ TỰ -->
     <script src="pokemonData.js"></script>
     <script src="campaigns.js"></script>
     <script src="gacha.js"></script>
+    <script src="js/shop.js"></script> <!-- Các file được tách từ app.js -->
+    <script src="js/state.js"></script>
+    <script src="js/utils.js"></script>
+    <!-- Chỉ giữ lại 1 dòng duy nhất ở cuối thẻ <body> -->
+    <script src="js/gym.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/merge.js"></script>
+    <script src="js/campaign.js"></script>
+    <script src="js/battle.js"></script>
     <script src="app.js"></script>
 </body>
 
