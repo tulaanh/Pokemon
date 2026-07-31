@@ -139,11 +139,11 @@ function selectCampaign(id) {
     let enemyListContainer = document.getElementById('preview-enemy-list');
     enemyListContainer.innerHTML = '';
     campData.enemies.forEach((enemy, idx) => {
-        let species = POKEMON_SPECIES.find(s => s.name === enemy.speciesName);
-        let rarity = RARITIES.find(r => r.name === enemy.rarityName);
+        let species = POKEMON_SPECIES.find(s => s.name === enemy.species);
+        let rarity = RARITIES.find(r => r.name === enemy.rarity);
         enemyListContainer.innerHTML += `
             <div class="enemy-preview-card">
-                <div><b>Wave ${idx + 1}:</b> <span class="${rarity ? rarity.color : ''}">${enemy.speciesName}</span></div>
+                <div><b>Wave ${idx + 1}:</b> <span class="${rarity ? rarity.color : ''}">${enemy.species}</span></div>
                 <small>Cấp ${enemy.level} | Hệ: <span class="type-badge type-${species ? species.type : 'Fire'}">${species ? species.type : ''}</span></small>
             </div>
         `;
@@ -168,8 +168,8 @@ function confirmAndStartBattle() {
     startBattle();
 }
 function createCampaignEnemy(enemyData) {
-    const species = POKEMON_SPECIES.find(p => p.name === enemyData.speciesName);
-    const rarity = RARITIES.find(r => r.name === enemyData.rarityName);
+    const species = POKEMON_SPECIES.find(p => p.name === enemyData.species);
+    const rarity = RARITIES.find(r => r.name === enemyData.rarity);
 
     let enemy = {
         id: Date.now() + Math.random(),

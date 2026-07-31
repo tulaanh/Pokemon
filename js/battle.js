@@ -43,8 +43,8 @@ function loadCampaignWave(waveIdx) {
     let campData = CAMPAIGN_LEVELS.find(c => c.id === selectedCampaignId);
     let enemyConfig = currentCampaignEnemies[waveIdx];
 
-    let eSpecies = POKEMON_SPECIES.find(s => s.name === enemyConfig.speciesName) || POKEMON_SPECIES[0];
-    let eRarity = RARITIES.find(r => r.name === enemyConfig.rarityName) || RARITIES[0];
+    let eSpecies = POKEMON_SPECIES.find(s => s.name === enemyConfig.species) || POKEMON_SPECIES[0];
+    let eRarity = RARITIES.find(r => r.name === enemyConfig.rarity) || RARITIES[0];
     let eLevel = enemyConfig.level;
     let sMult = enemyConfig.statMult;
 
