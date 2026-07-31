@@ -90,6 +90,94 @@ function showPokeDetailModal(idx) {
     let skillsContainer = document.getElementById('modal-poke-skills');
     skillsContainer.innerHTML = '';
 
+    // --- RENDER NỘI TẠI (PASSIVE) ---
+    let triggerNames = {
+        'perm': 'Vĩnh viễn',
+        'start_battle': 'Đầu trận',
+        'start_turn': 'Đầu lượt',
+        'take_damage': 'Nhận sát thương',
+        'hp_below_50': 'Khi HP < 50%'
+    };
+
+    skillsContainer.innerHTML += `<div style="margin-bottom: 6px; color: #f5c518; font-weight: bold; font-size: 0.95em;">🔥 Nội Tại (Passive) — 1/1</div>`;
+
+    if (p.passives && p.passives.length > 0) {
+        let ps = p.passives[0];
+        let triggerText = triggerNames[ps.trigger] || ps.trigger;
+        skillsContainer.innerHTML += `
+            <div style="border: 1px dashed #f5c518; background: rgba(245, 197, 24, 0.05); padding: 8px 10px; border-radius: 6px; margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                    <span><b style="color: #f5c518;">${ps.name}</b></span>
+                    <span style="color: #a6adc8; font-size: 0.85em;">Kích hoạt: <b>${triggerText}</b></span>
+                </div>
+                <div style="color: #f5c518; font-style: italic; font-size: 0.9em;">${ps.desc}</div>
+            </div>`;
+    } else {
+        // Fallback cho Pokemon cũ chưa được migrate
+        let ps = p.passive || rollPassive(p.type);
+        if (!p.passives) p.passives = [];
+        p.passives[0] = ps;
+        p.passive = ps;
+        let triggerText = triggerNames[ps.trigger] || ps.trigger;
+        skillsContainer.innerHTML += `
+            <div style="border: 1px dashed #f5c518; background: rgba(245, 197, 24, 0.05); padding: 8px 10px; border-radius: 6px; margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                    <span><b style="color: #f5c518;">${ps.name}</b></span>
+                    <span style="color: #a6adc8; font-size: 0.85em;">Kích hoạt: <b>${triggerText}</b></span>
+                </div>
+                <div style="color: #f5c518; font-style: italic; font-size: 0.9em;">${ps.desc}</div>
+            </div>`;
+    }
+
+    // --- RENDER TÀI NĂNG (TALENTS) ---
+    skillsContainer.innerHTML += `<div style="margin-top: 10px; margin-bottom: 6px; color: #64ffda; font-weight: bold; font-size: 0.95em;">⭐ Tài Năng (Talent) — ${(p.talents && p.talents.length) || 0}/3</div>`;
+
+    if (p.talents && p.talents.length > 0) {
+        let talentListHTML = '<ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px;">';
+        p.talents.forEach((tl, i) => {
+            let triggerText = triggerNames[tl.trigger] || tl.trigger;
+            talentListHTML += `
+                <li style="border: 1px dashed #64ffda; background: rgba(100, 255, 218, 0.05); padding: 8px 10px; border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                        <span><b style="color: #64ffda;">[Mốc V${[1, 3, 5][i] || '?'}] [${i + 1}] ${tl.name}</b></span>
+                        <span style="color: #a6adc8; font-size: 0.85em;">Kích hoạt: <b>${triggerText}</b></span>
+                    </div>
+                    <div style="color: #64ffda; font-style: italic; font-size: 0.9em;">${tl.desc}</div>
+                </li>`;
+        });
+        
+        // Hiển thị vị trí khóa nếu chưa đủ 3 tài năng
+        if (p.talents.length < 3) {
+            let nextMilestones = [1, 3, 5].slice(p.talents.length);
+            nextMilestones.forEach(v => {
+                talentListHTML += `
+                    <li style="border: 1px dashed #57577d; background: rgba(87, 87, 125, 0.05); padding: 8px 10px; border-radius: 6px; opacity: 0.7;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: #a6adc8;"><b>🔒 Tài Năng Vết Nứt</b></span>
+                            <span style="color: #ff4757; font-size: 0.85em;">Yêu cầu: <b>Cấp V${v}</b></span>
+                        </div>
+                    </li>`;
+            });
+        }
+        
+        talentListHTML += '</ul>';
+        skillsContainer.innerHTML += talentListHTML;
+    } else {
+        skillsContainer.innerHTML += `
+            <div style="border: 1px dashed #57577d; background: rgba(87, 87, 125, 0.05); padding: 10px; border-radius: 6px; opacity: 0.85;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span><b style="color: #a6adc8;">[Tài Năng] Chưa Mở Khóa</b></span>
+                    <span style="color: #ff4757; font-size: 0.85em;">Yêu cầu: <b>Cấp V1</b></span>
+                </div>
+                <div style="color: #a6adc8; font-style: italic; font-size: 0.9em;">
+                    Đạt các cấp V1, V3, và V5 (Hợp nhất Pokémon cùng loài) để mở khóa tối đa 3 Kỹ năng Tài năng chung.
+                </div>
+            </div>`;
+    }
+
+    // --- Phân cách giữa Passive/Talent và Skills ---
+    skillsContainer.innerHTML += `<hr style="border: none; border-top: 1px solid #3f3f5a; margin: 10px 0;">`;
+
     p.skills.forEach((sk, i) => {
         let valText = '';
         if (sk.category === 'damage' || sk.category === 'true_damage') {

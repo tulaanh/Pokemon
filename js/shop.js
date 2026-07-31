@@ -4,6 +4,19 @@ function updateResourceUI() {
     let goldEl = document.getElementById('gold-count');
     if (gemEl) gemEl.innerText = gems.toLocaleString();
     if (goldEl) goldEl.innerText = gold.toLocaleString();
+
+    // Cập nhật các tài nguyên mới cho hệ thống Gacha
+    let plLvlEl = document.getElementById('player-level');
+    let ppEl = document.getElementById('poke-point-count');
+    let pgEl = document.getElementById('poke-gacha-count');
+    let shopPgEl = document.getElementById('shop-poke-gacha-indicator');
+    
+    if (typeof gameState !== 'undefined' && gameState.player) {
+        if (plLvlEl) plLvlEl.innerText = gameState.player.level;
+        if (ppEl) ppEl.innerText = gameState.player.pokePoint.toLocaleString();
+        if (pgEl) pgEl.innerText = gameState.player.pokeGacha.toLocaleString();
+        if (shopPgEl) shopPgEl.innerText = gameState.player.pokeGacha.toLocaleString();
+    }
 }
 
 // === CỬA HÀNG ===
@@ -24,6 +37,7 @@ function buyRareCandy(amount) {
     log(`🍬 Đã mua ${amount} Kẹo Kinh Nghiệm với giá ${cost.toLocaleString()} Vàng!`);
     renderShop();
     updateResourceUI();
+    if (typeof saveGameState === 'function') saveGameState();
 }
 
 // === KHO ĐỒ ===
@@ -118,6 +132,7 @@ function useCandyOnPokemon(teamIdx) {
     if (typeof renderRoster === 'function') renderRoster();
     if (typeof updateUI === 'function') updateUI();
     updateResourceUI();
+    if (typeof saveGameState === 'function') saveGameState();
 
     // Refresh modal list
     openUseCandyModal();

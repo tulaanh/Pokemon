@@ -85,6 +85,9 @@ function renderGymList() {
     if (!container) return;
     container.innerHTML = '';
 
+    let playerLevel = (gameState && gameState.player && gameState.player.level) || 1;
+    let gymLocked = playerLevel < 25;
+
     Object.keys(GYM_DATA).forEach(gymType => {
         let gym = GYM_DATA[gymType];
         let progress = gymProgress[gymType] || 0;
@@ -98,12 +101,13 @@ function renderGymList() {
         let nextLevel = !isComplete && gym.waves[progress] ? gym.waves[progress].enemies[2].level : '--';
 
         container.innerHTML += `
-            <div class="gym-card gym-${gymType}" onclick="${isComplete ? '' : `selectGym('${gymType}')`}" 
-                 style="${isComplete ? 'cursor: default; opacity: 0.8;' : ''}">
+            <div class="gym-card gym-${gymType}" onclick="${isComplete || gymLocked ? '' : `selectGym('${gymType}')`}" 
+                 style="${isComplete ? 'cursor: default; opacity: 0.8;' : (gymLocked ? 'cursor: not-allowed; opacity: 0.6;' : '')}">
                 <div class="gym-icon">${gym.icon}</div>
                 <div class="gym-name">${gym.name}</div>
                 <div class="gym-status">${statusText}</div>
-                ${!isComplete ? `<small style="color: #a6adc8;">HLV tiếp theo: Trùm Lv.${nextLevel}</small>` : ''}
+                ${gymLocked && !isComplete ? `<div style="color: #ff4757; font-size: 11px; font-weight: bold; margin: 4px 0;">🔒 Yêu cầu: Cấp HLV từ 25</div>` : ''}
+                ${!isComplete && !gymLocked ? `<small style="color: #a6adc8;">HLV tiếp theo: Trùm Lv.${nextLevel}</small>` : ''}
                 <div class="gym-progress-bar">
                     <div class="gym-progress-fill ${gymType}" style="width: ${progressPercent}%"></div>
                 </div>
@@ -114,6 +118,12 @@ function renderGymList() {
 
 // === CHỌN GYM & CHUẨN BỊ ===
 function selectGym(gymType) {
+    let playerLevel = (gameState && gameState.player && gameState.player.level) || 1;
+    if (playerLevel < 25) {
+        alert(`🔒 Cấp HLV hiện tại của bạn là ${playerLevel}. Cần đạt cấp 25 mới mở khóa Phòng Gym!`);
+        return;
+    }
+
     currentGymType = gymType;
     let gym = GYM_DATA[gymType];
     let progress = gymProgress[gymType] || 0;
@@ -127,7 +137,7 @@ function selectGym(gymType) {
     let bossPoke = waveInfo.enemies[2];
     document.getElementById('gym-prep-title').innerHTML = `${gym.icon} ${gym.name} — Ải ${progress + 1}/5`;
     document.getElementById('gym-prep-desc').innerHTML = `Đối thủ: <b>Đội hình 3 Pokémon</b> (Trùm: ${bossPoke.species} Lv.${bossPoke.level})`;
-    document.getElementById('gym-type-requirement').innerHTML = `⚠️ Yêu cầu: Toàn bộ đội hình phải là hệ <span class="type-badge type-${gymType}">${gymType}</span>`;
+    document.getElementById('gym-type-requirement').innerHTML = `⚠️ Yêu cầu: Cấp HLV từ 25 — Toàn bộ đội hình phải là hệ <span class="type-badge type-${gymType}">${gymType}</span> và cấp Pokémon không được vượt quá cấp HLV (${playerLevel})`;
 
     // Reset gym battle slots
     gymBattleTeamIndices = [null, null, null];
@@ -143,12 +153,20 @@ function validateGymTeam(gymType) {
         return { valid: false, message: 'Bạn phải chọn ít nhất 1 Pokémon để xuất trận!' };
     }
 
+    let playerLevel = (gameState && gameState.player && gameState.player.level) || 1;
+
     for (let idx of selectedIndices) {
         let p = team[idx];
         if (p.type !== gymType) {
             return {
                 valid: false,
                 message: `❌ ${p.name} là hệ ${p.type}, không phải hệ ${gymType}! Toàn bộ đội hình phải là hệ ${gymType}.`
+            };
+        }
+        if (p.level > playerLevel) {
+            return {
+                valid: false,
+                message: `❌ ${p.name} đang ở cấp ${p.level}, cao hơn cấp HLV (${playerLevel})! Pokémon xuất trận không được vượt quá cấp của người chơi.`
             };
         }
     }
@@ -197,6 +215,7 @@ function gymSwitchToNextAlive() {
         if (idx !== null && team[idx] && team[idx].hp > 0) {
             activePokeIdx = idx;
             if (typeof log === 'function') log(`🔄 <b>${team[idx].name}</b> được tung vào sân Gym!`);
+            if (typeof applyStartBattlePassive === 'function') applyStartBattlePassive(team[idx]);
             updateGymBattleUI();
             return true;
         }
@@ -243,6 +262,7 @@ function loadGymWave() {
             speed: Math.round(eSpecies.baseSpeed * eRarity.statMult) + speedStep,
             spdGauge: Math.round(eSpecies.baseSpeed * eRarity.statMult) + speedStep,
             effects: [],
+            passive: eSpecies.passive ? JSON.parse(JSON.stringify(eSpecies.passive)) : null,
             skills: [
                 generateSkillInstance(eSpecies.type, 'Basic', eRarity, eLevel),
                 generateSkillInstance(eSpecies.type, 'Skill1', eRarity, eLevel)
@@ -265,6 +285,7 @@ function loadGymWave() {
     if (typeof log === 'function') {
         log(`🏟️ [Gym ${currentGymType}] Ải ${progress + 1}: <b>${team[activePokeIdx].name}</b> VS Đội HLV Gym (3 Pokémon)!`);
     }
+    if (typeof checkStartBattlePassives === 'function') checkStartBattlePassives();
     gymDetermineNextTurn();
 }
 
@@ -279,6 +300,7 @@ function gymCheckEnemyDefeatedOrSwitch() {
             if (typeof log === 'function') {
                 log(`🔄 HLV Gym tung <b>${enemyPoke.name}</b> (Lv.${enemyPoke.level}) ra sân [${gymActiveEnemyIdx + 1}/3]!`);
             }
+            if (typeof applyStartBattlePassive === 'function') applyStartBattlePassive(enemyPoke);
             return false; // Chưa tiêu diệt hết đội hình
         } else {
             handleGymEnemyDefeated(); // Đã diệt đủ 3 pokemon
@@ -318,6 +340,8 @@ function gymDetermineNextTurn() {
 function gymProcessStartOfTurnEffects(poke) {
     let isPlayer = (poke === team[activePokeIdx]);
     let pokeTitle = isPlayer ? `<b>${poke.name}</b>` : `<b>${poke.name} (HLV)</b>`;
+
+    if (typeof applyStartTurnPassive === 'function') applyStartTurnPassive(poke);
 
     for (let i = poke.effects.length - 1; i >= 0; i--) {
         let eff = poke.effects[i];
@@ -481,6 +505,7 @@ function showGymResultModal(isWin) {
     }
 
     document.getElementById('gym-result-modal').style.display = 'flex';
+    if (typeof saveGameState === 'function') saveGameState();
 }
 
 function closeGymResultModal() {
@@ -513,16 +538,19 @@ function openGymBattleSelectModal(slotIdx) {
         return;
     }
 
+    let playerLevel = (gameState && gameState.player && gameState.player.level) || 1;
+
     let list = team.map((p, originalIndex) => ({ pokemon: p, originalIndex }))
         .filter(item => {
             if (item.pokemon.type !== currentGymType) return false;
+            if (item.pokemon.level > playerLevel) return false;
             let isAlreadyInTeam = gymBattleTeamIndices.includes(item.originalIndex) && gymBattleTeamIndices[currentSelectingGymSlot] !== item.originalIndex;
             return !isAlreadyInTeam;
         })
         .sort((a, b) => b.pokemon.level - a.pokemon.level);
 
     if (list.length === 0) {
-        modalList.innerHTML = `<div style="text-align:center; padding: 20px; color: #ff4757;">Không có Pokémon hệ ${currentGymType} khả dụng!</div>`;
+        modalList.innerHTML = `<div style="text-align:center; padding: 20px; color: #ff4757;">Không có Pokémon hệ ${currentGymType} khả dụng! (Cấp Pokémon không được vượt quá cấp HLV ${playerLevel})</div>`;
     } else {
         list.forEach(item => {
             let p = item.pokemon;
@@ -627,6 +655,7 @@ function performGymInBattleSwitch(targetIdx) {
     if (typeof log === 'function') log(`🔄 Thu hồi <b>${oldPoke.name}</b>, tung <b>${newPoke.name}</b> vào sân Gym!`);
     oldPoke.spdGauge -= 100;
 
+    if (typeof applyStartBattlePassive === 'function') applyStartBattlePassive(newPoke);
     updateGymBattleUI();
     gymDetermineNextTurn();
 }

@@ -31,6 +31,7 @@ function switchToNextAlivePokemon() {
         if (idx !== null && team[idx] && team[idx].hp > 0) {
             activePokeIdx = idx;
             log(`🔄 <b>${team[idx].name}</b> được tung vào sân!`);
+            applyStartBattlePassive(team[idx]);
             updateUI();
             return true;
         }
@@ -64,9 +65,11 @@ function loadCampaignWave(waveIdx) {
         initMp: eInitMp,
         mp: eInitMp,
         atk: Math.round((eSpecies.baseAtk + eLevel * 5) * eRarity.statMult * sMult),
+        def: Math.round((eSpecies.baseDef + eLevel * 3) * eRarity.statMult * sMult),
         speed: Math.round((eSpecies.baseSpeed + eLevel * 2) * eRarity.statMult),
         spdGauge: Math.round((eSpecies.baseSpeed + eLevel * 2) * eRarity.statMult),
         effects: [],
+        passive: eSpecies.passive ? JSON.parse(JSON.stringify(eSpecies.passive)) : null,
         skills: [
             generateSkillInstance(eSpecies.type, 'Basic', eRarity, eLevel),
             generateSkillInstance(eSpecies.type, 'Skill1', eRarity, eLevel)
@@ -81,14 +84,133 @@ function loadCampaignWave(waveIdx) {
     document.getElementById('wave-indicator').innerText = `Wave: ${waveIdx + 1}/${currentCampaignEnemies.length}`;
 
     log(`⚔️ [Wave ${waveIdx + 1}] Bắt đầu! <b>${team[activePokeIdx].name}</b> VS <b>${enemyPoke.name}</b>`);
+    checkStartBattlePassives();
     determineNextTurn();
+}
+
+function getEffectiveAtk(poke) {
+    let mult = 1.0;
+    if (poke.effects) {
+        poke.effects.forEach(e => {
+            if (e.type === 'debuff_atk') mult -= (e.val / 100);
+            if (e.type === 'buff_atk') mult += (e.val / 100);
+        });
+    }
+    return Math.max(1, Math.round(poke.atk * Math.max(0.1, mult)));
+}
+
+function getEffectiveDef(poke) {
+    let mult = 1.0;
+    if (poke.effects) {
+        poke.effects.forEach(e => {
+            if (e.type === 'debuff_def') mult -= (e.val / 100);
+            if (e.type === 'buff_def') mult += (e.val / 100);
+        });
+    }
+    return Math.max(0, Math.round(poke.def * Math.max(0.1, mult)));
+}
+
+function applyStartBattlePassive(poke) {
+    let allSkills = (typeof getAllPassiveSkills === 'function') ? getAllPassiveSkills(poke) : (poke.passive ? [poke.passive] : []);
+    allSkills.forEach(skill => {
+        if (skill && skill.trigger === 'start_battle') {
+            if (skill.type === 'mp_buff') {
+                poke.mp = Math.min(poke.maxMp || 100, poke.mp + skill.value);
+                log(`⭐ <b>[${skill.name}]</b> của ${poke.name} kích hoạt! Nhận thêm +${skill.value} MP ban đầu.`);
+            } else if (skill.type === 'speed_buff') {
+                let valPct = Math.round(skill.value * 100);
+                if (!poke.effects) poke.effects = [];
+                poke.effects.push({
+                    type: 'buff_speed',
+                    duration: 5,
+                    val: valPct,
+                    name: `${skill.name}: +${valPct}% Tốc`
+                });
+                log(`⭐ <b>[${skill.name}]</b> của ${poke.name} kích hoạt! Tăng +${valPct}% Tốc Độ trong 5 lượt.`);
+            }
+        }
+    });
+}
+
+function checkStartBattlePassives() {
+    let playerPoke = team[activePokeIdx];
+    if (playerPoke) {
+        applyStartBattlePassive(playerPoke);
+    }
+    if (enemyPoke) {
+        applyStartBattlePassive(enemyPoke);
+    }
+}
+
+function applyStartTurnPassive(poke) {
+    if (poke.hp <= 0) return;
+    let allSkills = (typeof getAllPassiveSkills === 'function') ? getAllPassiveSkills(poke) : (poke.passive ? [poke.passive] : []);
+    allSkills.forEach(skill => {
+        if (skill && skill.trigger === 'start_turn') {
+            if (skill.type === 'heal_self') {
+                let healAmt = Math.round(poke.maxHp * skill.value);
+                poke.hp = Math.min(poke.maxHp, poke.hp + healAmt);
+                log(`⭐ <b>[${skill.name}]</b> của ${poke.name} kích hoạt! Tự hồi phục <b>+${healAmt}</b> HP.`);
+            } else if (skill.type === 'cleanse_cc') {
+                let cleaned = false;
+                if (poke.effects) {
+                    for (let i = poke.effects.length - 1; i >= 0; i--) {
+                        if (poke.effects[i].type === 'stun') {
+                            poke.effects.splice(i, 1);
+                            cleaned = true;
+                        }
+                    }
+                }
+                if (cleaned) {
+                    log(`⭐ <b>[${skill.name}]</b> của ${poke.name} kích hoạt! Hóa giải hiệu ứng khống chế (choáng).`);
+                }
+            }
+        }
+    });
+}
+
+function checkTakeDamagePassives(target, dmg, attacker) {
+    if (!target || target.hp <= 0) return;
+    let allSkills = (typeof getAllPassiveSkills === 'function') ? getAllPassiveSkills(target) : (target.passive ? [target.passive] : []);
+    
+    allSkills.forEach(skill => {
+        if (!skill) return;
+
+        // 1. Phản sát thương
+        if (skill.trigger === 'take_damage' && skill.type === 'reflect_damage' && dmg > 0) {
+            let reflectDmg = Math.round(dmg * skill.value);
+            attacker.hp = Math.max(0, attacker.hp - reflectDmg);
+            log(`⭐ <b>[${skill.name}]</b> của ${target.name} phản lại <b>${reflectDmg}</b> sát thương lên ${attacker.name}!`);
+        }
+
+        // 2. Buff công khi HP dưới 50%
+        if (skill.trigger === 'hp_below_50' && target.hp < target.maxHp * 0.5) {
+            if (skill.type === 'atk_buff') {
+                if (!target.effects) target.effects = [];
+                let buffName = `${skill.name}: +${Math.round(skill.value * 100)}% ATK`;
+                let alreadyHas = target.effects.some(e => e.name === buffName);
+                if (!alreadyHas) {
+                    target.effects.push({
+                        type: 'buff_atk',
+                        duration: 3,
+                        val: Math.round(skill.value * 100),
+                        name: buffName
+                    });
+                    log(`⭐ <b>[${skill.name}]</b> của ${target.name} kích hoạt! Tăng ${Math.round(skill.value * 100)}% ATK khi dưới 50% HP (3 lượt).`);
+                }
+            }
+        }
+    });
 }
 
 function getEffectiveSpeed(poke) {
     let speedMult = 1.0;
-    poke.effects.forEach(e => {
-        if (e.type === 'slow') speedMult -= (e.val / 100);
-    });
+    if (poke.effects) {
+        poke.effects.forEach(e => {
+            if (e.type === 'slow') speedMult -= (e.val / 100);
+            if (e.type === 'buff_speed') speedMult += (e.val / 100);
+        });
+    }
     return Math.max(10, Math.round(poke.speed * Math.max(0.2, speedMult)));
 }
 
@@ -121,6 +243,9 @@ function determineNextTurn() {
 function processStartOfTurnEffects(poke) {
     let isPlayer = (poke === team[activePokeIdx]);
     let pokeTitle = isPlayer ? `<b>${poke.name}</b>` : `<b>${poke.name} (Bot)</b>`;
+
+    // Áp dụng nội tại đầu lượt
+    applyStartTurnPassive(poke);
 
     // Danh sách các loại hiệu ứng DoT (Sát thương theo thời gian)
     const dotEffectTypes = ['burn', 'shock', 'poison', 'bleed'];
@@ -261,8 +386,8 @@ function executeSkillAction(caster, target, skill, isPlayer) {
         let critMult = isCrit ? 1.5 : 1.0;
         
         // --- TÍNH SÁT THƯƠNG CÓ TÍNH ĐẾN CHI SỐ DEF ---
-        let baseDmg = caster.atk + (skill.power || 0);
-        let targetDef = target.def || 0; // Tự động lấy 0 nếu target chưa có thuộc tính def
+        let baseDmg = getEffectiveAtk(caster) + (skill.power || 0);
+        let targetDef = getEffectiveDef(target); 
         
         // Hệ số giảm sát thương theo DEF (Ví dụ: DEF = 100 -> giảm 50% sát thương)
         let defReduction = 100 / (100 + targetDef); 
@@ -287,6 +412,9 @@ function executeSkillAction(caster, target, skill, isPlayer) {
         let typeText = mult > 1 ? " (Xung khắc!)" : mult < 1 ? " (Kháng...)" : "";
         log(`${critText}${prefix} dùng [${skill.name}] gây <b>${rawDmg}</b> sát thương${typeText}!`);
 
+        // Kích hoạt nội tại khi nhận sát thương
+        checkTakeDamagePassives(target, actualDmgToTarget, caster);
+
         if (skill.effect) applyStatusEffect(target, skill.effect);
 
         let thornEff = target.effects.find(e => e.type === 'thorn');
@@ -308,11 +436,14 @@ function executeSkillAction(caster, target, skill, isPlayer) {
         let critMult = isCrit ? 1.5 : 1.0;
         
         // Sát thương chuẩn BỎ QUA DEF của mục tiêu
-        let rawDmg = Math.round((caster.atk + (skill.power || 0)) * critMult * (0.9 + Math.random() * 0.2));
+        let rawDmg = Math.round((getEffectiveAtk(caster) + (skill.power || 0)) * critMult * (0.9 + Math.random() * 0.2));
         rawDmg = Math.max(1, rawDmg);
         
         target.hp = Math.max(0, target.hp - rawDmg);
         log(`${prefix} dùng [${skill.name}] gây ${rawDmg} SÁT THƯƠNG CHUẨN (Bỏ qua DEF)!`);
+
+        // Kích hoạt nội tại khi nhận sát thương
+        checkTakeDamagePassives(target, rawDmg, caster);
     }
 }
 
@@ -395,6 +526,7 @@ function performInBattleSwitch(targetIdx) {
     log(`🔄 Bạn đã thu hồi <b>${oldPoke.name}</b> và tung <b>${newPoke.name}</b> ra sân!`);
     oldPoke.spdGauge -= 100;
 
+    applyStartBattlePassive(newPoke);
     updateUI();
     determineNextTurn();
 }
@@ -433,6 +565,7 @@ function showBattleResultModal(isWin) {
         `;
     }
     document.getElementById('result-modal').style.display = 'flex';
+    if (typeof saveGameState === 'function') saveGameState();
 }
 
 function closeResultModal() {

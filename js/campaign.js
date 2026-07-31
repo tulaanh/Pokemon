@@ -167,3 +167,50 @@ function confirmAndStartBattle() {
     battleRewards = { gems: 0, exp: 0 };
     startBattle();
 }
+function createCampaignEnemy(enemyData) {
+    const species = POKEMON_SPECIES.find(p => p.name === enemyData.speciesName);
+    const rarity = RARITIES.find(r => r.name === enemyData.rarityName);
+
+    let enemy = {
+        id: Date.now() + Math.random(),
+        name: species.name,
+        type: species.type,
+        rarity: rarity,
+        level: enemyData.level,
+        exp: 0,
+        maxExp: 100,
+
+        maxHp: 0,
+        hp: 0,
+        shield: 0,
+        mp: 0,
+
+        atk: 0,
+        def: 0,
+        speed: 0,
+
+        iv: { hp: 1, atk: 1, def: 1, speed: 1 },
+
+        spdGauge: 0,
+        effects: [],
+        passive: species.passive,
+        passives: [species.passive],
+        talents: [],
+        skills: [
+            generateSkillInstance(species.type, 'Basic', rarity, enemyData.level),
+            generateSkillInstance(species.type, 'Skill1', rarity, enemyData.level)
+        ]
+    };
+
+    // Tính chỉ số
+    recalculatePokemonStats(enemy);
+
+    // Nhân thêm hệ số màn chơi
+    enemy.maxHp = Math.round(enemy.maxHp * enemyData.statMult);
+    enemy.hp = enemy.maxHp;
+    enemy.atk = Math.round(enemy.atk * enemyData.statMult);
+    enemy.def = Math.round(enemy.def * enemyData.statMult);
+    enemy.speed = Math.round(enemy.speed * enemyData.statMult);
+
+    return enemy;
+}

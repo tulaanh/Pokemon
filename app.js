@@ -2,6 +2,7 @@
 window.onload = function () {
     if (typeof renderCampaignSelector === 'function') renderCampaignSelector();
     if (typeof updateResourceUI === 'function') updateResourceUI();
+    if (typeof renderGachaTab === 'function') renderGachaTab();
 };
 
 function switchTab(tabId) {
@@ -17,6 +18,7 @@ function switchTab(tabId) {
     if (targetBtn) targetBtn.classList.add('active');
 
     // Kích hoạt các hàm render tương ứng
+    if (tabId === 'gacha-tab' && typeof renderGachaTab === 'function') renderGachaTab();
     if (tabId === 'roster-tab' && typeof renderRoster === 'function') renderRoster();
     if (tabId === 'merge-tab' && typeof updateMergeUI === 'function') updateMergeUI();
     if (tabId === 'campaign-tab' && typeof selectCampaign === 'function') selectCampaign(selectedCampaignId);

@@ -12,10 +12,15 @@
 
     <div id="game-container">
         <!-- TAB NAVIGATION -->
-        <header>
-            <h1>⚡ Pokémon Engine ⚡</h1>
+        <header style="display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;">
+            <h1>⚡ Pokémon GayLord ⚡</h1>
             <div class="resource-bar">
-                💎 Gem: <span id="gem-count">10000</span> | 💰 Vàng: <span id="gold-count">0</span> </div>
+                💎 Gem: <span id="gem-count">10000</span> | 💰 Vàng: <span id="gold-count">0</span> | ⭐ Lv: <span id="player-level">1</span> | 🎟️ PokePoint: <span id="poke-point-count">1000</span> | 🎫 PokeGacha: <span id="poke-gacha-count">0</span>
+            </div>
+            <div class="header-save-actions" style="position: absolute; right: 10px; top: 10px; display: flex; gap: 8px;">
+                <button onclick="saveGameState(); alert('💾 Đã lưu tiến trình thành công!');" style="background: #a6e3a1; color: #11111b; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; font-size: 12px; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#94e2d5'" onmouseout="this.style.background='#a6e3a1'">💾 Lưu Game</button>
+                <button onclick="resetGameState()" style="background: #f38ba8; color: #11111b; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; font-size: 12px; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#e78284'" onmouseout="this.style.background='#f38ba8'">🔄 Reset Game</button>
+            </div>
         </header>
 
         <!-- THANH TABS -->
@@ -31,21 +36,68 @@
 
         <!-- TAB 1: GACHA -->
         <div id="gacha-tab" class="tab-content active">
-            <div class="card" style="max-width: 500px; margin: 0 auto;">
+            <div class="card" style="max-width: 800px; margin: 0 auto;">
                 <h3>🔮 Đài Triệu Hoán Pokémon</h3>
-                <p style="color: #a6adc8; margin-top: 5px; margin-bottom: 15px;">Dùng Gem để chiêu mộ Pokémon mới về
-                    đội!</p>
+                <p style="color: #a6adc8; margin-top: 5px; margin-bottom: 20px;">Dùng PokePoint để chiêu mộ Pokémon mới về đội và nhận PokeGacha tích lũy đổi Pokémon bảo hiểm!</p>
 
-                <div class="gacha-actions"
-                    style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 15px;">
-                    <button class="choice-btn" onclick="drawGachaMulti(1)">Quay x1 (100 💎)</button>
-                    <button class="choice-btn" onclick="drawGachaMulti(10)">Quay x10 (1.000 💎)</button>
-                    <button class="choice-btn" onclick="drawGachaMulti(50)">Quay x50 (5.000 💎)</button>
-                    <button class="choice-btn" onclick="drawGachaMulti(100)">Quay x100 (10.000 💎)</button>
+                <!-- DANH SÁCH BANNER GACHA -->
+                <h4 style="margin-bottom: 10px; color: #f5c518; text-align: left;">🌟 Chọn Banner Triệu Hoán:</h4>
+                <div id="gacha-banners-list" class="gacha-banner-container"></div>
+
+                <!-- KHU VỰC THỰC HIỆN ROLL BANNER -->
+                <div id="active-banner-actions" style="background: #181825; padding: 20px; border-radius: 10px; border: 1px solid #3f3f5a; margin-bottom: 20px; text-align: center;">
+                    <h4 id="active-banner-title" style="margin-bottom: 10px; color: #fff;">Chưa chọn Banner</h4>
+                    <p id="active-banner-details" style="font-size: 12px; color: #a6adc8; margin-bottom: 15px;"></p>
+                    <div style="display: flex; gap: 15px; justify-content: center; margin-bottom: 15px;">
+                        <button id="btn-roll-x1" class="gacha-btn-roll" onclick="triggerRoll(1)">Quay x1</button>
+                        <button id="btn-roll-x10" class="gacha-btn-roll" onclick="triggerRoll(10)">Quay x10</button>
+                    </div>
                 </div>
 
                 <!-- KHU VỰC HIỂN THỊ KẾT QUẢ GACHA -->
-                <div id="gacha-result" style="text-align: center; font-size: 14px; min-height: 45px;"></div>
+                <div id="gacha-result" style="text-align: center; font-size: 14px; min-height: 45px; margin-bottom: 20px;"></div>
+
+                <!-- CỬA HÀNG ĐỔI ĐIỂM (POKEGACHA SHOP) -->
+                <div class="gacha-shop-container">
+                    <h3 style="color: #a6e3a1; text-align: left; display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <span>🎫 Cửa Hàng Đổi Điểm (PokeGacha Shop)</span>
+                        <span style="font-size: 14px; color: #a6adc8; font-weight: normal;">
+                            Điểm của bạn: <strong id="shop-poke-gacha-indicator" class="rarity-Legendary" style="font-size: 16px;">0</strong> 🎫
+                        </span>
+                    </h3>
+                    <p style="color: #a6adc8; text-align: left; font-size: 12px; margin-bottom: 15px;">
+                        Sử dụng điểm PokeGacha tích lũy từ các lần quay để đổi trực tiếp Pokémon đặc trưng của các banner!
+                    </p>
+                    <div id="gacha-shop-items" class="gacha-shop-grid"></div>
+                </div>
+
+                <!-- BẢNG ĐIỀU CHỈNH THỬ NGHIỆM (CHEAT PANEL) CHO USER DỄ DÀNG GRADING/TEST -->
+                <div class="cheat-panel">
+                    <h4 style="color: #f38ba8; margin-bottom: 8px; text-align: left; display: flex; justify-content: space-between;">
+                        <span>🛠️ Bảng Điều Khiển Thử Nghiệm (Cheat / Test Tools)</span>
+                        <span style="font-size: 11px; font-weight: normal; color: #a6adc8;">Dành cho lập trình viên & người chấm điểm</span>
+                    </h4>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-start;">
+                        <div>
+                            <span style="font-size:12px; color:#cdd6f4;">PokePoint:</span>
+                            <button class="cheat-btn" onclick="cheatAddResource('pokePoint', 1000)">+1.000 🎟️</button>
+                            <button class="cheat-btn" onclick="cheatAddResource('pokePoint', 10000)">+10.000 🎟️</button>
+                        </div>
+                        <div style="margin-left: 15px;">
+                            <span style="font-size:12px; color:#cdd6f4;">PokeGacha:</span>
+                            <button class="cheat-btn" onclick="cheatAddResource('pokeGacha', 100)">+100 🎫</button>
+                            <button class="cheat-btn" onclick="cheatAddResource('pokeGacha', 500)">+500 🎫</button>
+                        </div>
+                        <div style="margin-left: 15px;">
+                            <span style="font-size:12px; color:#cdd6f4;">Cấp người chơi (Lv):</span>
+                            <input type="number" id="input-cheat-level" value="1" min="1" max="100" style="width: 50px; background:#11111b; border:1px solid #3f3f5a; color:#fff; padding:3px; border-radius:4px; text-align:center;">
+                            <button class="cheat-btn" onclick="cheatSetLevel()">Áp dụng</button>
+                        </div>
+                        <div style="margin-left: auto;">
+                            <button class="cheat-btn" style="background:#585b70; color:#fff;" onclick="cheatResetAllResources()">Reset Tài Nguyên</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -559,6 +611,7 @@
     <script src="js/state.js"></script>
     <script src="js/utils.js"></script>
     <!-- Chỉ giữ lại 1 dòng duy nhất ở cuối thẻ <body> -->
+    <script src="js/skills.js"></script>
     <script src="js/gym.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/merge.js"></script>

@@ -1,16 +1,17 @@
 // --- V-LEVEL BUFF MATH & STATS ---
 function getVLevelBuffRatio(vLevel) {
     if (!vLevel || vLevel <= 0) return { hpRatio: 0, atkRatio: 0, defRatio: 0, spdRatio: 0 };
-    if (vLevel === 1) return { hpRatio: 0.15, atkRatio: 0.15, defRatio: 0.15, spdRatio: 0.10 };
-    if (vLevel === 2) return { hpRatio: 0.35, atkRatio: 0.35, defRatio: 0.35, spdRatio: 0.20 };
-    if (vLevel === 3) return { hpRatio: 0.60, atkRatio: 0.60, defRatio: 0.60, spdRatio: 0.30 };
+    if (vLevel === 1) return { hpRatio: 0.75, atkRatio: 0.75, defRatio: 0.75, spdRatio: 0.10 };
+    if (vLevel === 2) return { hpRatio: 1.1, atkRatio: 1.2, defRatio: 1, spdRatio: 0.20 };
+    if (vLevel === 3) return { hpRatio: 1.65, atkRatio: 1.60, defRatio: 1.30, spdRatio: 0.40 };
+    if (vLevel == 4 ) return { hpRatio: 2.1, atkRatio: 2.10, defRatio: 1.60, spdRatio: 0.45 };
 
-    let extra = vLevel - 3;
+    let extra = vLevel - 4;
     return {
-        hpRatio: 0.60 + extra * 0.30,
-        atkRatio: 0.60 + extra * 0.30,
-        defRatio: 0.60 + extra * 0.30,
-        spdRatio: 0.30 + extra * 0.10
+        hpRatio: 2.1 + extra * 0.30,
+        atkRatio: 2.10 + extra * 0.30,
+        defRatio: 1.60 + extra * 0.30,
+        spdRatio: 0.45 + extra * 0.05
     };
 }
 
@@ -61,6 +62,24 @@ function recalculatePokemonStats(p) {
     p.speed = Math.round(rawSpeed * (1 + vBuff.spdRatio));
     p.def = Math.round(rawDef * (1 + vBuff.defRatio));
     p.initMp = rawInitMp; // Cập nhật initMp mới
+
+    // --- PASSIVE PERMANENT BUFF (Duyệt tất cả Nội tại + Tài năng) ---
+    let allPermSkills = (typeof getAllPassiveSkills === 'function') ? getAllPassiveSkills(p) : (p.passive ? [p.passive] : []);
+    allPermSkills.forEach(skill => {
+        if (skill && skill.trigger === 'perm') {
+            let val = skill.value || 0;
+            if (skill.type === 'perm_hp') {
+                p.maxHp = Math.round(p.maxHp * (1 + val));
+            } else if (skill.type === 'perm_atk') {
+                p.atk = Math.round(p.atk * (1 + val));
+            } else if (skill.type === 'perm_def') {
+                p.def = Math.round(p.def * (1 + val));
+            } else if (skill.type === 'perm_hybrid_atk_hp') {
+                p.maxHp = Math.round(p.maxHp * (1 + val));
+                p.atk = Math.round(p.atk * (1 + val));
+            }
+        }
+    });
 
     // --- GYM BUFF: Tăng 10% chỉ số nếu đã hoàn thành Gym hệ tương ứng ---
     let gymBuff = (typeof gymBuffs !== 'undefined' && gymBuffs[p.type]) ? gymBuffs[p.type] : 0;

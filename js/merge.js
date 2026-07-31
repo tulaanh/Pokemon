@@ -166,6 +166,22 @@ function executeMerge() {
     // Tăng cấp V
     pMain.vLevel = (pMain.vLevel || 0) + 1;
 
+    // --- HỆ THỐNG TÀI NĂNG: Mở khóa tại V1, V3, V5 ---
+    if (!pMain.talents) pMain.talents = [];
+    if (!pMain.passives) {
+        // Fallback phòng hờ trường hợp Pokemon cũ không có passives
+        pMain.passives = pMain.passive ? [JSON.parse(JSON.stringify(pMain.passive))] : [rollPassive(pMain.type)];
+        pMain.passive = pMain.passives[0];
+    }
+
+    // Chỉ mở khóa Talent mới tại các mốc V1, V3, V5
+    if (TALENT_UNLOCK_VLEVELS && TALENT_UNLOCK_VLEVELS.includes(pMain.vLevel)) {
+        // Quay 1 Tài năng từ pool chung
+        let newTalent = rollTalent();
+        pMain.talents.push(newTalent);
+        log(`🌟 <b>[TÀI NĂNG MỞ KHÓA]</b> <b>${pMain.name} V${pMain.vLevel}</b> khai phá tài năng: <span style="color: #64ffda;">[${newTalent.name}]</span> - <i>${newTalent.desc}</i>!`);
+    }
+
     // Giữ level cao hơn nếu phôi phụ level cao hơn
     if (pSub.level > pMain.level) {
         pMain.level = pSub.level;
@@ -187,4 +203,5 @@ function executeMerge() {
     updateMergeUI();
     renderRoster();
     if (typeof updateUI === 'function') updateUI();
+    if (typeof saveGameState === 'function') saveGameState();
 }
