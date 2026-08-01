@@ -195,6 +195,13 @@ function executeMerge() {
 
     // Xóa phôi phụ
     team.splice(mergeSlotSub, 1);
+
+    // Dọn dẹp: nếu phôi phụ đang nằm trong Pokédex thì gỡ khỏi danh sách yêu thích
+    if (gameState.pokedex && pSub.id) {
+        let staleIdx = gameState.pokedex.indexOf(String(pSub.id));
+        if (staleIdx !== -1) gameState.pokedex.splice(staleIdx, 1);
+    }
+
     mergeSlotMain = null;
     mergeSlotSub = null;
 

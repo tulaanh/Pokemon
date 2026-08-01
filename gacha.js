@@ -114,7 +114,13 @@ function executeSingleRoll() {
 
     recalculatePokemonStats(newPoke);
     newPoke.hp = newPoke.maxHp;
-    team.push(newPoke);
+
+    // Thêm vào Kho (kiểm tra giới hạn tối đa 150)
+    if (typeof addPokemonToInventory === 'function') {
+        addPokemonToInventory(newPoke);
+    } else {
+        team.push(newPoke);
+    }
 
     return newPoke;
 }
@@ -252,8 +258,12 @@ function executeBannerRoll(bannerId) {
     recalculatePokemonStats(newPoke);
     newPoke.hp = newPoke.maxHp;
 
-    // Thêm vào kho của Player
-    gameState.myPokemons.push(newPoke);
+    // Thêm vào kho của Player (kiểm tra giới hạn tối đa 150)
+    if (typeof addPokemonToInventory === 'function') {
+        addPokemonToInventory(newPoke);
+    } else {
+        gameState.myPokemons.push(newPoke);
+    }
 
     return newPoke;
 }
@@ -271,6 +281,13 @@ function rollGacha(bannerId, times) {
     }
 
     let totalCost = banner.cost * times;
+
+    // Kiểm tra dung lượng Kho trước khi trừ tiền: mỗi lượt quay nhận 1 Pokémon
+    if (team.length + times > INVENTORY_LIMIT) {
+        alert(`Kho đã đầy! (${team.length}/${INVENTORY_LIMIT}) Không thể quay thêm. Hãy hợp nhất hoặc giải phóng chỗ trống.`);
+        return;
+    }
+
     if (banner.currency === 'gems') {
         if (gems < totalCost) {
             alert(`❌ Không đủ Gem! Bạn cần ${totalCost} Gem để quay x${times}. Hiện tại bạn có: ${gems}`);
@@ -333,6 +350,12 @@ function rollGacha(bannerId, times) {
 function redeemPokemon(pokemonName, cost) {
     if (gameState.player.pokeGacha < cost) {
         alert(`❌ Không đủ điểm PokeGacha! Bạn cần ${cost} điểm để đổi ${pokemonName}. Hiện có: ${gameState.player.pokeGacha}`);
+        return;
+    }
+
+    // Kiểm tra dung lượng Kho trước khi trừ điểm
+    if (team.length >= INVENTORY_LIMIT) {
+        alert(`Kho đã đầy! (${team.length}/${INVENTORY_LIMIT}) Hãy giải phóng chỗ trống trước khi đổi Pokémon.`);
         return;
     }
 
@@ -399,7 +422,12 @@ function redeemPokemon(pokemonName, cost) {
     recalculatePokemonStats(newPoke);
     newPoke.hp = newPoke.maxHp;
 
-    gameState.myPokemons.push(newPoke);
+    // Thêm vào kho (kiểm tra giới hạn tối đa 150)
+    if (typeof addPokemonToInventory === 'function') {
+        addPokemonToInventory(newPoke);
+    } else {
+        gameState.myPokemons.push(newPoke);
+    }
 
     alert(`🎉 Đổi thành công! Nhận được: [${selectedRarity.name}] ${newPoke.name} (Lv.${newPoke.level})!`);
 
@@ -563,6 +591,8 @@ function cheatResetAllResources() {
     if (confirm('Xác nhận đặt lại tất cả tài nguyên Gacha về mặc định (PokePoint: 1000, PokeGacha: 0, Cấp người chơi: 1)?')) {
         if (gameState && gameState.player) {
             gameState.player.level = 1;
+            gameState.player.playerExp = 0;
+            gameState.player.playerExpToNext = 100;
             gameState.player.pokePoint = 1000;
             gameState.player.pokeGacha = 0;
             updateResourceUI();
@@ -580,8 +610,14 @@ function drawGachaMulti(count) {
         return;
     }
 
+    // Kiểm tra dung lượng Kho trước khi trừ Gem
+    if (team.length + count > INVENTORY_LIMIT) {
+        alert(`Kho đã đầy! (${team.length}/${INVENTORY_LIMIT}) Không thể quay thêm. Hãy hợp nhất hoặc giải phóng chỗ trống.`);
+        return;
+    }
+
     gems -= cost;
-    document.getElementById('gem-count').innerText = gems;
+    document.getElementById('gem-count').innerText = gems.toLocaleString();
 
     let results = [];
     for (let i = 0; i < count; i++) {

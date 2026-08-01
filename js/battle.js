@@ -335,8 +335,10 @@ function handleEnemyDefeated() {
         battleRewards.gems = campData.rewardGems;
         battleRewards.exp += campData.rewardExp;
 
-        document.getElementById('gem-count').innerText = gems;
+        document.getElementById('gem-count').innerText = gems.toLocaleString();
         gainExp(p, campData.rewardExp);
+        if (typeof addPlayerExp === 'function') addPlayerExp(campData.rewardExp);
+        if (typeof updateResourceUI === 'function') updateResourceUI();
         showBattleResultModal(true);
     }
 }
@@ -581,9 +583,23 @@ window.skillQueue = [];
 
 function gainExp(p, amount) {
     p.exp += amount;
+
+    // Cấp Pokémon không bao giờ được vượt quá cấp Huấn luyện viên (HLV)
+    let trainerLevel = (gameState && gameState.player && gameState.player.level) || 1;
+
+    // Nếu đã đạt/đang vượt cấp trần: giữ nguyên thanh EXP đầy để không bị mất kinh nghiệm
+    if (p.level >= trainerLevel) {
+        p.exp = Math.min(p.exp, p.maxExp);
+        log(`✨ ${p.name} nhận +${amount} EXP!`);
+        log(`🔒 ${p.name} đã đạt cấp trần Lv.${p.level} (bằng cấp Huấn luyện viên) - không thể lên cấp thêm.`);
+        renderRoster();
+        updateUI();
+        return;
+    }
+
     log(`✨ ${p.name} nhận +${amount} EXP!`);
 
-    while (p.exp >= p.maxExp) {
+    while (p.exp >= p.maxExp && p.level < trainerLevel) {
         p.level++;
         p.exp -= p.maxExp;
         p.maxExp = Math.round((p.level * 50) + Math.pow(p.level, 1.5) * 10);
@@ -600,6 +616,11 @@ function gainExp(p, amount) {
                 title: `🔥 THĂNG CẤP LEVEL ${p.level}: CHỌN HỌC KỸ NĂNG MỚI`
             });
         }
+    }
+
+    // Vừa chạm cấp trần trong lần lên cấp này: giữ EXP thừa thành thanh đầy
+    if (p.level >= trainerLevel && p.exp > p.maxExp) {
+        p.exp = p.maxExp;
     }
 
     renderRoster();

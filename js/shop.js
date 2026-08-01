@@ -1,21 +1,24 @@
 // --- SHOP & INVENTORY SYSTEM ---
 function updateResourceUI() {
-    let gemEl = document.getElementById('gem-count');
-    let goldEl = document.getElementById('gold-count');
-    if (gemEl) gemEl.innerText = gems.toLocaleString();
-    if (goldEl) goldEl.innerText = gold.toLocaleString();
-
-    // Cập nhật các tài nguyên mới cho hệ thống Gacha
-    let plLvlEl = document.getElementById('player-level');
-    let ppEl = document.getElementById('poke-point-count');
-    let pgEl = document.getElementById('poke-gacha-count');
+    // Cập nhật tài nguyên phụ (PokeGacha hiển thị trong Gacha Shop)
     let shopPgEl = document.getElementById('shop-poke-gacha-indicator');
-    
     if (typeof gameState !== 'undefined' && gameState.player) {
-        if (plLvlEl) plLvlEl.innerText = gameState.player.level;
-        if (ppEl) ppEl.innerText = gameState.player.pokePoint.toLocaleString();
-        if (pgEl) pgEl.innerText = gameState.player.pokeGacha.toLocaleString();
         if (shopPgEl) shopPgEl.innerText = gameState.player.pokeGacha.toLocaleString();
+    }
+
+    // Cập nhật toàn bộ Header (player info, EXP bar, tiền tệ) qua updateHeaderUI
+    if (typeof updateHeaderUI === 'function') {
+        let player = (typeof gameState !== 'undefined' && gameState.player) ? gameState.player : {};
+        updateHeaderUI({
+            name: 'Player 1',
+            level: player.level || 0,
+            currentExp: player.playerExp || 0,
+            nextLevelExp: (typeof getPlayerNextLevelExp === 'function') ? getPlayerNextLevelExp(player.level) : 100,
+            gem: gems,
+            gold: gold,
+            pokePoint: player.pokePoint || 0,
+            pokeGacha: player.pokeGacha || 0
+        });
     }
 }
 
@@ -41,7 +44,7 @@ function buyRareCandy(amount) {
 }
 
 // === KHO ĐỒ ===
-function renderInventory() {
+function renderItemInventory() {
     updateResourceUI();
     let candyEl = document.getElementById('inv-candy-count');
     if (candyEl) candyEl.innerText = inventory.candy;
@@ -71,8 +74,10 @@ function openUseCandyModal() {
         let p = item.pokemon;
         let idx = item.idx;
         let vBadge = p.vLevel > 0 ? `<span class="v-badge">V${p.vLevel}</span>` : '';
-        let levelWarning = p.level >= 90 ? '<span style="color:#ff4757; font-size:11px;"> (MAX)</span>' : '';
-        let isDisabled = p.level >= 90;
+        let trainerLevel = (gameState && gameState.player && gameState.player.level) || 1;
+        let isCapped = p.level >= 90 || p.level >= trainerLevel;
+        let levelWarning = isCapped ? '<span style="color:#ff4757; font-size:11px;"> (TRẦN)</span>' : '';
+        let isDisabled = isCapped;
 
         modalList.innerHTML += `
             <div class="roster-item" onclick="${isDisabled ? '' : `useCandyOnPokemon(${idx})`}" 
@@ -107,6 +112,12 @@ function useCandyOnPokemon(teamIdx) {
         return;
     }
 
+    let trainerLevel = (gameState && gameState.player && gameState.player.level) || 1;
+    if (p.level >= trainerLevel) {
+        alert(`❌ ${p.name} đã đạt cấp trần Lv.${p.level} (bằng cấp Huấn luyện viên)! Hãy nâng cấp HLV trước.`);
+        return;
+    }
+
     inventory.candy--;
     p.level++;
     p.maxExp = Math.round((p.level * 50) + Math.pow(p.level, 1.5) * 10);
@@ -127,7 +138,7 @@ function useCandyOnPokemon(teamIdx) {
         if (typeof processSkillQueue === 'function') processSkillQueue();
     }
 
-    renderInventory();
+    renderItemInventory();
     renderShop();
     if (typeof renderRoster === 'function') renderRoster();
     if (typeof updateUI === 'function') updateUI();

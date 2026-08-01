@@ -12,14 +12,42 @@
 
     <div id="game-container">
         <!-- TAB NAVIGATION -->
-        <header style="display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;">
-            <h1>⚡ Pokémon GayLord ⚡</h1>
-            <div class="resource-bar">
-                💎 Gem: <span id="gem-count">10000</span> | 💰 Vàng: <span id="gold-count">0</span> | ⭐ Lv: <span id="player-level">1</span> | 🎟️ PokePoint: <span id="poke-point-count">1000</span> | 🎫 PokeGacha: <span id="poke-gacha-count">0</span>
-            </div>
-            <div class="header-save-actions" style="position: absolute; right: 10px; top: 10px; display: flex; gap: 8px;">
-                <button onclick="saveGameState(); alert('💾 Đã lưu tiến trình thành công!');" style="background: #a6e3a1; color: #11111b; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; font-size: 12px; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#94e2d5'" onmouseout="this.style.background='#a6e3a1'">💾 Lưu Game</button>
-                <button onclick="resetGameState()" style="background: #f38ba8; color: #11111b; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; font-size: 12px; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#e78284'" onmouseout="this.style.background='#f38ba8'">🔄 Reset Game</button>
+        <header id="game-header">
+            <div class="header-title">⚡ Pokémon GayLord ⚡</div>
+            <div class="header-main">
+                <!-- KHU VỰC 1: THÔNG TIN NGƯỜI CHƠI -->
+                <div class="header-player">
+                    <div class="header-avatar" id="player-avatar">👤</div>
+                    <div class="header-player-info">
+                        <span class="header-player-name" id="header-player-name">Player 1</span>
+                        <span class="header-player-level" id="player-level">Lv. 1</span>
+                    </div>
+                </div>
+
+                <!-- KHU VỰC 2: THANH KINH NGHIỆM (EXP BAR) -->
+                <div class="header-exp">
+                    <div class="header-exp-label">
+                        <span>⚡ Kinh Nghiệm</span>
+                        <span id="player-exp-text">0 / 100 EXP</span>
+                    </div>
+                    <div class="header-exp-bar">
+                        <div class="header-exp-fill" id="player-exp-bar-fill"></div>
+                    </div>
+                </div>
+
+                <!-- KHU VỰC 3: CÁC ĐƠN VỊ TIỀN TỆ -->
+                <div class="header-resources">
+                    <div class="resource-chip" title="Gem"><span class="resource-icon">💎</span><span id="gem-count" class="resource-value">0</span></div>
+                    <div class="resource-chip" title="Vàng"><span class="resource-icon">💰</span><span id="gold-count" class="resource-value">0</span></div>
+                    <div class="resource-chip" title="PokePoint"><span class="resource-icon">🎟️</span><span id="poke-point-count" class="resource-value">0</span></div>
+                    <div class="resource-chip" title="PokeGacha"><span class="resource-icon">🎫</span><span id="poke-gacha-count" class="resource-value">0</span></div>
+                </div>
+
+                <!-- NÚT LƯU / RESET -->
+                <div class="header-save-actions">
+                    <button onclick="saveGameState(); alert('💾 Đã lưu tiến trình thành công!');">💾 Lưu Game</button>
+                    <button onclick="resetGameState()">🔄 Reset Game</button>
+                </div>
             </div>
         </header>
 
@@ -104,7 +132,13 @@
         <!-- TAB 2: ROSTER & INVENTORY -->
         <div id="roster-tab" class="tab-content">
             <div class="card">
-                <h3>🎒 Quản Lý Đội Hình & Kho Pokémon</h3>
+                <h3 style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 10px;">
+                    <span>🎒 Quản Lý Đội Hình & Kho Pokémon</span>
+                    <button id="btn-open-pokedex" class="gacha-btn" onclick="openPokedexModal()"
+                        style="width: auto; padding: 6px 14px; font-size: 13px; background: linear-gradient(45deg, #f5c518, #e056fd); color: #11111b;">
+                        📖 Pokédex (0/20)
+                    </button>
+                </h3>
 
                 <!-- SEARCH & SORT CONTROLS -->
                 <div class="filter-bar">
@@ -510,6 +544,7 @@
                     <option value="rarity-asc">Độ hiếm (Thấp ➔ Cao)</option>
                 </select>
             </div>
+            <small style="display: block; margin-top: 8px; color: #f5c518; font-size: 11px; text-align: center;">⭐ Chỉ hiển thị Pokémon trong Pokédex (Yêu thích) — tối đa 20 con.</small>
             <div id="battle-modal-list" class="roster-grid"
                 style="max-height: 320px; overflow-y: auto; margin-top: 12px;">
                 <!-- JS render -->
@@ -561,6 +596,39 @@
                 <button class="gacha-btn" onclick="closePokeDetailModal()"
                     style="background: #57577d; width: 100%;">ĐÓNG</button>
             </div>
+        </div>
+    </div>
+    <!-- MODAL CHI TIẾT POKÉMON (POKÉDEX DETAILS) -->
+    <div id="pokemon-detail-modal" class="modal hidden">
+        <div class="modal-content pokemon-detail-content">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #3f3f5a; padding-bottom:10px;">
+                <h3 style="margin:0; color:#f5c518;">📋 Chi Tiết Pokémon</h3>
+                <button class="close-btn" onclick="closePokemonDetail()"
+                    style="background:none; border:none; color:#fff; font-size:24px; cursor:pointer;">&times;</button>
+            </div>
+            <div id="pokemon-detail-body" style="margin-top:14px;"></div>
+            <div style="text-align:center; margin-top:20px;">
+                <button class="gacha-btn" onclick="closePokemonDetail()" style="background:#57577d; width:100%;">ĐÓNG</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL POKÉDEX (DANH SÁCH YÊU THÍCH) -->
+    <div id="pokedex-modal" class="modal-overlay"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; justify-content: center; align-items: center;">
+        <div class="modal-content"
+            style="background: #2b2b3d; padding: 20px; border-radius: 8px; width: 90%; max-width: 760px; max-height: 85vh; overflow-y: auto; text-align: left;">
+            <div class="modal-header"
+                style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #57577d; padding-bottom: 10px; margin-bottom: 15px;">
+                <h3 style="margin: 0; color: #f5c518;">📖 Pokédex — Pokémon Chủ Lực</h3>
+                <button class="close-btn" onclick="closePokedexModal()"
+                    style="background: none; border: none; color: #fff; font-size: 24px; cursor: pointer;">&times;</button>
+            </div>
+            <div id="pokedex-list" style="display: flex; flex-direction: column; gap: 12px;">
+                <!-- JS render danh sách Pokédex vào đây -->
+            </div>
+            <button onclick="closePokedexModal()" class="choice-btn"
+                style="text-align: center; margin-top: 15px; background: #ff4757; width: 100%;">Đóng</button>
         </div>
     </div>
     <!-- MODAL CHỌN POKEMON GYM XUẤT TRẬN -->
@@ -617,6 +685,7 @@
     <script src="js/merge.js"></script>
     <script src="js/campaign.js"></script>
     <script src="js/battle.js"></script>
+    <script src="js/inventory.js"></script>
     <script src="app.js"></script>
 </body>
 

@@ -14,7 +14,7 @@ let gymEnemyPoke = null; // Đã đổi lại thành gymEnemyPoke để không t
 let gymBattleRewards = { gold: 0, exp: 0 };
 
 if (typeof gymProgress === 'undefined') {
-    var gymProgress = { Water: 0, Fire: 0, Grass: 0, Electric: 0 };
+    var gymProgress = { Water: 0, Fire: 0, Grass: 0, Electric: 0, Rock: 0 };
 }
 if (typeof gymBuffs === 'undefined') {
     var gymBuffs = {};
@@ -71,6 +71,18 @@ const GYM_DATA = {
             { enemies: [ { level: 61, species: 'Pikachu', rarity: 'Epic', statMult: 1.8 }, { level: 63, species: 'Pikachu', rarity: 'Epic', statMult: 2.0 }, { level: 65, species: 'Pikachu', rarity: 'Legendary', statMult: 2.2 } ] },
             { enemies: [ { level: 76, species: 'Pikachu', rarity: 'Legendary', statMult: 2.4 }, { level: 78, species: 'Pikachu', rarity: 'Legendary', statMult: 2.6 }, { level: 80, species: 'Pikachu', rarity: 'Mythic', statMult: 2.8 } ] },
             { enemies: [ { level: 86, species: 'Pikachu', rarity: 'Legendary', statMult: 3.0 }, { level: 88, species: 'Pikachu', rarity: 'Mythic', statMult: 3.2 }, { level: 90, species: 'Pikachu', rarity: 'Mythic', statMult: 3.5 } ] }
+        ]
+    },
+    Rock: {
+        name: 'Phòng Gym Đá',
+        icon: '🪨',
+        type: 'Rock',
+        waves: [
+            { enemies: [ { level: 21, species: 'Onix', rarity: 'Common', statMult: 1.2 }, { level: 23, species: 'Lycanroc', rarity: 'Rare', statMult: 1.3 }, { level: 25, species: 'Onix', rarity: 'Rare', statMult: 1.5 } ] },
+            { enemies: [ { level: 36, species: 'Lycanroc', rarity: 'Rare', statMult: 1.5 }, { level: 38, species: 'Onix', rarity: 'Epic', statMult: 1.6 }, { level: 40, species: 'Lycanroc', rarity: 'Epic', statMult: 1.8 } ] },
+            { enemies: [ { level: 61, species: 'Onix', rarity: 'Epic', statMult: 1.8 }, { level: 63, species: 'Lycanroc', rarity: 'Epic', statMult: 2.0 }, { level: 65, species: 'Garganacl', rarity: 'Legendary', statMult: 2.2 } ] },
+            { enemies: [ { level: 76, species: 'Lycanroc', rarity: 'Legendary', statMult: 2.4 }, { level: 78, species: 'Garganacl', rarity: 'Legendary', statMult: 2.6 }, { level: 80, species: 'Onix', rarity: 'Mythic', statMult: 2.8 } ] },
+            { enemies: [ { level: 86, species: 'Onix', rarity: 'Legendary', statMult: 3.0 }, { level: 88, species: 'Garganacl', rarity: 'Mythic', statMult: 3.2 }, { level: 90, species: 'Tyranitar', rarity: 'Mythic', statMult: 3.5 } ] }
         ]
     }
 };

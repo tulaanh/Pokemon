@@ -20,6 +20,13 @@ function onBattleSortChange(val) {
 }
 
 function renderBattleModalList() {
+    // Ủy quyền cho renderBattleSelection() (js/inventory.js):
+    // Danh sách xuất trận CHỈ load từ Pokédex (tối đa 20 con yêu thích)
+    if (typeof renderBattleSelection === 'function') {
+        renderBattleSelection();
+        return;
+    }
+
     let modalList = document.getElementById('battle-modal-list');
     if (!modalList) return;
     modalList.innerHTML = '';

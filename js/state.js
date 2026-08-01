@@ -8,6 +8,8 @@ var team = [];
 var gameState = {
     player: {
         level: 1,
+        playerExp: 0,
+        playerExpToNext: 100,
         pokePoint: 1500,
         pokeGacha: 0
     },
@@ -16,7 +18,8 @@ var gameState = {
     },
     set myPokemons(val) {
         team = val;
-    }
+    },
+    pokedex: [] // Danh sách ID Pokémon yêu thích (Pokédex) — tối đa 20
 };
 
 var activePokeIdx = 0;
@@ -47,7 +50,7 @@ var searchQuery = '';
 var sortBy = 'default';
 
 // Gym state
-var gymProgress = { Water: 0, Fire: 0, Grass: 0, Electric: 0 };
+var gymProgress = { Water: 0, Fire: 0, Grass: 0, Electric: 0, Rock: 0 };
 var gymBuffs = {};
 
 // --- CẬP NHẬT THỨ TỰ SẮP XẾP ---
@@ -82,9 +85,12 @@ function saveGameState() {
             sortBy,
             gymProgress,
             gymBuffs,
+            pokedex: gameState.pokedex,
             // Lưu playerState từ gameState
             playerState: {
                 level: gameState.player.level,
+                playerExp: gameState.player.playerExp,
+                playerExpToNext: gameState.player.playerExpToNext,
                 pokePoint: gameState.player.pokePoint,
                 pokeGacha: gameState.player.pokeGacha
             }
@@ -123,10 +129,14 @@ function loadGameState() {
         if (data.sortBy) sortBy = data.sortBy;
         if (data.gymProgress) gymProgress = data.gymProgress;
         if (data.gymBuffs) gymBuffs = data.gymBuffs;
+        // Tải Pokédex (danh sách yêu thích) — khôi phục mặc định [] nếu save cũ chưa có
+        gameState.pokedex = Array.isArray(data.pokedex) ? data.pokedex : [];
         
         // Tải thông tin người chơi vào gameState.player
         if (data.playerState) {
             gameState.player.level = data.playerState.level !== undefined ? data.playerState.level : 1;
+            gameState.player.playerExp = data.playerState.playerExp !== undefined ? data.playerState.playerExp : 0;
+            gameState.player.playerExpToNext = data.playerState.playerExpToNext !== undefined ? data.playerState.playerExpToNext : 100;
             gameState.player.pokePoint = data.playerState.pokePoint !== undefined ? data.playerState.pokePoint : 1000;
             gameState.player.pokeGacha = data.playerState.pokeGacha !== undefined ? data.playerState.pokeGacha : 0;
         }

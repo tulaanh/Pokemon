@@ -1,3 +1,64 @@
+// --- HEADER UI ---
+function formatNumber(num) {
+    num = Number(num);
+    if (isNaN(num)) num = 0;
+    return num.toLocaleString('en-US');
+}
+
+function updateHeaderUI(playerData) {
+    if (!playerData) playerData = {};
+
+    let nameEl = document.getElementById('header-player-name');
+    let levelEl = document.getElementById('player-level');
+    let expTextEl = document.getElementById('player-exp-text');
+    let expFillEl = document.getElementById('player-exp-bar-fill');
+    let gemEl = document.getElementById('gem-count');
+    let goldEl = document.getElementById('gold-count');
+    let ppEl = document.getElementById('poke-point-count');
+    let pgEl = document.getElementById('poke-gacha-count');
+
+    if (nameEl) nameEl.innerText = playerData.name || 'Player 1';
+    if (levelEl) levelEl.innerText = `Lv. ${Number(playerData.level) || 0}`;
+
+    let currentExp = Number(playerData.currentExp) || 0;
+    let nextLevelExp = Number(playerData.nextLevelExp) || 1;
+    if (nextLevelExp <= 0) nextLevelExp = 1;
+    let expPercent = Math.min(100, Math.max(0, (currentExp / nextLevelExp) * 100));
+
+    if (expTextEl) expTextEl.innerText = `${formatNumber(currentExp)} / ${formatNumber(nextLevelExp)} EXP`;
+    if (expFillEl) expFillEl.style.width = `${expPercent}%`;
+
+    if (gemEl) gemEl.innerText = formatNumber(playerData.gem);
+    if (goldEl) goldEl.innerText = formatNumber(playerData.gold);
+    if (ppEl) ppEl.innerText = formatNumber(playerData.pokePoint);
+    if (pgEl) pgEl.innerText = formatNumber(playerData.pokeGacha);
+}
+
+// --- HỖ TRỢ EXP NGƯỜI CHƠI ---
+function getPlayerNextLevelExp(level) {
+    let lvl = Number(level) || 1;
+    return 100 + (lvl - 1) * 50;
+}
+
+function addPlayerExp(amount) {
+    if (!gameState || !gameState.player) return;
+    amount = Number(amount) || 0;
+    if (amount <= 0) return;
+
+    gameState.player.playerExp = (gameState.player.playerExp || 0) + amount;
+    let next = getPlayerNextLevelExp(gameState.player.level);
+
+    while (gameState.player.playerExp >= next) {
+        gameState.player.playerExp -= next;
+        gameState.player.level++;
+        next = getPlayerNextLevelExp(gameState.player.level);
+        if (typeof log === 'function') log(`⬆️ <b>Nâng cấp người chơi! Lv.${gameState.player.level}</b> 🎉`);
+    }
+
+    gameState.player.playerExpToNext = next;
+    if (typeof updateResourceUI === 'function') updateResourceUI();
+}
+
 // --- ROSTER & FILTER ---
 function onSearchChange(val) {
     searchQuery = val.trim().toLowerCase();
@@ -29,6 +90,12 @@ function filterAndSortTeam() {
 }
 
 function renderRoster() {
+    // Ủy quyền cho renderInventory() (js/inventory.js) để hiển thị Kho kèm Pokédex ⭐
+    if (typeof renderInventory === 'function') {
+        renderInventory();
+        return;
+    }
+
     let rosterContainer = document.getElementById('roster-container');
     if (!rosterContainer) return;
 

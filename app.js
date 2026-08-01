@@ -23,6 +23,6 @@ function switchTab(tabId) {
     if (tabId === 'merge-tab' && typeof updateMergeUI === 'function') updateMergeUI();
     if (tabId === 'campaign-tab' && typeof selectCampaign === 'function') selectCampaign(selectedCampaignId);
     if (tabId === 'shop-tab' && typeof renderShop === 'function') renderShop();
-    if (tabId === 'inventory-tab' && typeof renderInventory === 'function') renderInventory();
+    if (tabId === 'inventory-tab' && typeof renderItemInventory === 'function') renderItemInventory();
     if (tabId === 'gym-tab' && typeof updateGymUI === 'function') updateGymUI();
 }
