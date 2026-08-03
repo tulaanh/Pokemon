@@ -1,0 +1,138 @@
+{ "compressionlevel":-1,
+ "height":6,
+ "infinite":false,
+ "layers":[
+        {
+         "data":[146, 147, 148, 149,
+            160, 161, 162, 163,
+            174, 175, 176, 177,
+            188, 189, 190, 191,
+            202, 203, 204, 205,
+            216, 217, 218, 219],
+         "height":6,
+         "id":1,
+         "name":"main",
+         "opacity":1,
+         "type":"tilelayer",
+         "visible":true,
+         "width":4,
+         "x":0,
+         "y":0
+        }, 
+        {
+         "data":[54, 54, 0, 54,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            54, 54, 54, 54],
+         "height":6,
+         "id":2,
+         "name":"Con",
+         "opacity":1,
+         "properties":[
+                {
+                 "name":"conclusion",
+                 "type":"int",
+                 "value":1
+                }],
+         "type":"tilelayer",
+         "visible":false,
+         "width":4,
+         "x":0,
+         "y":0
+        }, 
+        {
+         "draworder":"topdown",
+         "id":4,
+         "name":"spawns",
+         "objects":[
+                {
+                 "height":8.69782848730217,
+                 "id":1,
+                 "name":"start",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":9.40449024659551,
+                 "x":9.16010305483989,
+                 "y":89.4486566065513
+                }, 
+                {
+                 "height":16,
+                 "id":3,
+                 "name":"main_door",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":16,
+                 "x":32,
+                 "y":16
+                }],
+         "opacity":1,
+         "type":"objectgroup",
+         "visible":true,
+         "x":0,
+         "y":0
+        }, 
+        {
+         "draworder":"topdown",
+         "id":5,
+         "name":"doors",
+         "objects":[
+                {
+                 "height":16,
+                 "id":2,
+                 "name":"door_out",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"to",
+                         "type":"string",
+                         "value":"town"
+                        }, 
+                        {
+                         "name":"toSpawn",
+                         "type":"string",
+                         "value":"house_door"
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":16,
+                 "x":32.7066617592933,
+                 "y":16.0176665439823
+                }],
+         "opacity":1,
+         "type":"objectgroup",
+         "visible":true,
+         "x":0,
+         "y":0
+        }],
+ "nextlayerid":6,
+ "nextobjectid":3,
+ "orientation":"orthogonal",
+ "renderorder":"right-down",
+ "tiledversion":"1.12.2",
+ "tileheight":16,
+ "tilesets":[
+        {
+         "columns":14,
+         "firstgid":1,
+         "image":"..\/tilesets\/AxulArt_Basic-Top-down-interior_ALL_By_AxulArt.png",
+         "imageheight":344,
+         "imagewidth":224,
+         "margin":0,
+         "name":"AxulArt_Basic-Top-down-interior_ALL_By_AxulArt",
+         "spacing":0,
+         "tilecount":294,
+         "tileheight":16,
+         "tilewidth":16
+        }],
+ "tilewidth":16,
+ "type":"map",
+ "version":"1.10",
+ "width":4
+}
