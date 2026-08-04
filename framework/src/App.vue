@@ -1,6 +1,5 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { store } from './game/store.js'
 import { playMusic } from './game/audio.js'
 import GameHeader from './components/GameHeader.vue'
 import CheatConsole from './components/CheatConsole.vue'
@@ -15,8 +14,14 @@ import StoryView from './views/StoryView.vue'
 import GymView from './views/GymView.vue'
 import TowerView from './views/TowerView.vue'
 import DailyView from './views/DailyView.vue'
+import TrainingView from './views/TrainingView.vue'
+import BattleArena from './components/battle/BattleArena.vue'
+import { getOnboardingStage, STORY_STAGES } from './game/story.js'
 import Toast from './components/ui/Toast.vue'
 import ConfirmModal from './components/ui/ConfirmModal.vue'
+import SettingsModal from './components/ui/SettingsModal.vue'
+import ScreenTransition from './components/ui/ScreenTransition.vue'
+import { withScreenTransition } from './game/screenTransition.js'
 
 const categories = [
   {
@@ -74,6 +79,8 @@ const MODE_VIEWS = {
   gym: GymView,
   tower: TowerView,
   daily: DailyView,
+  training: TrainingView,
+  wild: BattleArena,
 }
 
 const activeMode = ref(null)
@@ -83,23 +90,32 @@ const activeModeInfo = computed(() => {
     const mode = cat.modes.find((m) => m.id === activeMode.value)
     if (mode) return mode
   }
+  // Trận huấn luyện chỉ mở từ cốt truyện (không nằm trong menu chính)
+  if (activeMode.value === 'training') return { icon: '🎓', label: 'Trận Huấn Luyện' }
   return null
 })
 
-const onboardingActive = computed(() => !store.gameState.player.hasCompletedFirstLogin)
+const onboardingStage = computed(() => getOnboardingStage())
+const onboardingActive = computed(() => onboardingStage.value < STORY_STAGES.DONE)
 
 function handleOpenMode(mode, ...args) {
-  if (mode === 'gym' && args[0]) {
-    // Set gym type in battle state before opening
-    import('./game/battle.js').then(({ battle }) => {
+  withScreenTransition(async () => {
+    if (mode === 'gym' && args[0]) {
+      // Set gym type in battle state before opening
+      const { battle } = await import('./game/battle.js')
       battle.gymType = args[0]
-    })
-  }
-  activeMode.value = mode
+    }
+    if (mode === 'wild' && args[0]) {
+      // Set wild Pokemon in battle state before opening
+      const { battle, startWildBattle } = await import('./game/battle.js')
+      startWildBattle(args[0])
+    }
+    activeMode.value = mode
+  }, { label: 'Đang chuyển cảnh...', minDuration: 300 })
 }
 
 // --- NHẠC NỀN THEO NGỮ CẢNH ---
-const BATTLE_MODES = ['campaign', 'story', 'gym', 'tower']
+const BATTLE_MODES = ['campaign', 'story', 'gym', 'tower', 'training']
 
 function trackForMode(mode) {
   if (mode === 'gacha') return 'gacha'
@@ -147,7 +163,15 @@ onBeforeUnmount(() => {
           v-if="onboardingActive"
           class="fixed left-1/2 top-3 z-20 -translate-x-1/2 rounded-xl border border-amber-300 bg-amber-50/95 px-4 py-3 text-center text-sm font-semibold text-amber-700 shadow-lg backdrop-blur-sm"
         >
-          🧭 Nhiệm vụ: Đi đến <span class="font-black">Phòng Lab của Giáo sư Oak</span> (tòa nhà bên phải thị trấn) để nhập tên và nhận Pokémon khởi đầu!
+          <template v-if="onboardingStage === STORY_STAGES.HOME">
+            🧭 Nhiệm vụ: Đi đến <span class="font-black">Phòng Lab của Giáo sư Oak</span> (tòa nhà bên phải thị trấn) để nhập tên và nhận Pokémon khởi đầu!
+          </template>
+          <template v-else-if="onboardingStage === STORY_STAGES.GO_CAMPAIGN">
+            🧭 Nhiệm vụ: Đi đến <span class="font-black">Cửa Chiến dịch ⚔️</span> ở thị trấn để bắt đầu hành trình!
+          </template>
+          <template v-else>
+            🧭 Nhiệm vụ: Đến <span class="font-black">Bệnh viện Pokémon</span> nói chuyện với Y tá để đăng ký Pokédex và học cách chiến đấu!
+          </template>
         </div>
       </template>
 
@@ -170,13 +194,15 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <component :is="MODE_VIEWS[activeMode]" v-if="MODE_VIEWS[activeMode]" />
+          <component :is="MODE_VIEWS[activeMode]" v-if="MODE_VIEWS[activeMode]" @back="activeMode = null" />
         </main>
       </template>
     </div>
 
-    <!-- Toast + Confirm -->
+    <!-- Toast + Confirm + Loading + Settings -->
     <Toast />
     <ConfirmModal />
+    <ScreenTransition />
+    <SettingsModal />
   </div>
 </template>

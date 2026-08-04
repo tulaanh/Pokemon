@@ -206,7 +206,6 @@ function confirmAndStartGymBattle() {
             p.hp = p.maxHp;
             p.shield = 0;
             p.mp = p.initMp;
-            p.spdGauge = p.speed;
             p.effects = [];
             if (p.skills) p.skills.forEach(s => s.currentCd = 0);
         }
@@ -272,7 +271,6 @@ function loadGymWave() {
             atk: Math.round(eSpecies.baseAtk * atkMult * eRarity.statMult * sMult),
             def: Math.round(eSpecies.baseDef * defMult * eRarity.statMult * sMult),
             speed: Math.round(eSpecies.baseSpeed * eRarity.statMult) + speedStep,
-            spdGauge: Math.round(eSpecies.baseSpeed * eRarity.statMult) + speedStep,
             effects: [],
             passive: eSpecies.passive ? JSON.parse(JSON.stringify(eSpecies.passive)) : null,
             skills: [
@@ -298,7 +296,7 @@ function loadGymWave() {
         log(`🏟️ [Gym ${currentGymType}] Ải ${progress + 1}: <b>${team[activePokeIdx].name}</b> VS Đội HLV Gym (3 Pokémon)!`);
     }
     if (typeof checkStartBattlePassives === 'function') checkStartBattlePassives();
-    gymDetermineNextTurn();
+    gymDetermineFirstTurn();
 }
 
 // === TỰ ĐỘNG ĐỔI POKÉMON ĐỐI THỦ KHI BỊ HẠ GỤC ===
@@ -323,25 +321,45 @@ function gymCheckEnemyDefeatedOrSwitch() {
 }
 
 // === XỬ LÝ LƯỢT ĐẤU GYM ===
-function gymDetermineNextTurn() {
+function gymDetermineFirstTurn() {
     let p = team[activePokeIdx];
     if (!p || p.hp <= 0 || enemyPoke.hp <= 0) return;
 
-    while (p.spdGauge < 100 && enemyPoke.spdGauge < 100) {
-        p.spdGauge += getEffectiveSpeed(p) * 0.2;
-        enemyPoke.spdGauge += getEffectiveSpeed(enemyPoke) * 0.2;
+    let pSpd = getEffectiveSpeed(p);
+    let eSpd = getEffectiveSpeed(enemyPoke);
+
+    if (pSpd > eSpd) {
+        currentTurnOwner = 'player';
+    } else if (eSpd > pSpd) {
+        currentTurnOwner = 'bot';
+    } else {
+        currentTurnOwner = Math.random() < 0.5 ? 'player' : 'bot';
     }
     updateGymBattleUI();
 
-    if (p.spdGauge >= enemyPoke.spdGauge) {
-        currentTurnOwner = 'player';
-        gymProcessStartOfTurnEffects(p);
+    let firstName = currentTurnOwner === 'player' ? `<b>${p.name}</b>` : `<b>${enemyPoke.name} (HLV Gym)</b>`;
+    if (pSpd === eSpd) {
+        if (typeof log === 'function') log(`🎲 Tốc độ ngang bằng — chọn ngẫu nhiên: ${firstName} đi trước!`);
+    } else {
+        if (typeof log === 'function') log(`⚡ ${firstName} đi trước nhờ Tốc Độ!`);
+    }
+    updateGymBattleUI();
+
+    gymStartNextTurn();
+}
+
+// Chuyển lượt theo cơ chế đánh theo lượt bình thường (xen kẽ)
+function gymStartNextTurn() {
+    let p = team[activePokeIdx];
+    if (!p || p.hp <= 0 || enemyPoke.hp <= 0) return;
+
+    if (currentTurnOwner === 'player') {
+        if (gymProcessStartOfTurnEffects(p)) return;
         if (p.hp <= 0) return;
         if (typeof log === 'function') log(`⚡ Lượt của <b>${p.name}</b>!`);
         updateGymBattleUI();
     } else {
-        currentTurnOwner = 'bot';
-        gymProcessStartOfTurnEffects(enemyPoke);
+        if (gymProcessStartOfTurnEffects(enemyPoke)) return;
         if (enemyPoke.hp <= 0) return;
         if (typeof log === 'function') log(`🤖 Lượt của <b>${enemyPoke.name} (HLV Gym)</b>!`);
         updateGymBattleUI();
@@ -374,14 +392,20 @@ function gymProcessStartOfTurnEffects(poke) {
             if (typeof log === 'function') log(`💀 <b>${poke.name}</b> đã gục ngã vì mất máu đầu lượt!`);
             if (!gymSwitchToNextAlive()) {
                 showGymResultModal(false);
+                updateGymBattleUI();
+                return true;
             }
-        } else {
-            if (!gymCheckEnemyDefeatedOrSwitch()) {
-                gymDetermineNextTurn(); 
-            }
+            gymDetermineFirstTurn();
+            return true;
+        }
+        if (!gymCheckEnemyDefeatedOrSwitch()) {
+            gymDetermineFirstTurn(); 
         }
         updateGymBattleUI();
+        return true;
     }
+    updateGymBattleUI();
+    return false;
 }
 
 function gymExecuteBotTurn() {
@@ -397,8 +421,15 @@ function gymExecuteBotTurn() {
 
         executeSkillAction(enemyPoke, p, chosenSkill, false);
 
-        enemyPoke.spdGauge -= 100;
         enemyPoke.skills.forEach(s => { if (s.currentCd > 0) s.currentCd--; });
+
+        if (enemyPoke.hp <= 0) {
+            let allDefeated = gymCheckEnemyDefeatedOrSwitch();
+            isProcessingTurn = false;
+            updateGymBattleUI();
+            if (!allDefeated) gymDetermineFirstTurn();
+            return;
+        }
 
         if (p.hp <= 0) {
             if (typeof log === 'function') log(`💀 <b>${p.name}</b> đã gục ngã!`);
@@ -409,10 +440,15 @@ function gymExecuteBotTurn() {
                 showGymResultModal(false);
                 return;
             }
+            isProcessingTurn = false;
+            gymDetermineFirstTurn();
+            return;
         }
 
+        currentTurnOwner = 'player';
         isProcessingTurn = false;
-        gymDetermineNextTurn();
+        updateGymBattleUI();
+        gymStartNextTurn();
     }, 800);
 }
 
@@ -428,7 +464,6 @@ function useGymSkill(skillIdx) {
     isProcessingTurn = true;
     executeSkillAction(p, enemyPoke, skill, true);
 
-    p.spdGauge -= 100;
     p.skills.forEach(s => { if (s.currentCd > 0) s.currentCd--; });
 
     if (enemyPoke.hp <= 0) {
@@ -436,13 +471,15 @@ function useGymSkill(skillIdx) {
         isProcessingTurn = false;
         updateGymBattleUI();
         if (!allDefeated) {
-            gymDetermineNextTurn();
+            gymDetermineFirstTurn();
         }
         return;
     }
 
+    currentTurnOwner = 'bot';
     isProcessingTurn = false;
-    gymDetermineNextTurn();
+    updateGymBattleUI();
+    gymStartNextTurn();
 }
 
 // === XỬ LÝ THẮNG GYM ===
@@ -619,7 +656,7 @@ function updateGymBattleSlotsUI() {
 // === ĐỔI POKÉMON TRONG TRẬN GYM ===
 function openGymInBattleSwitchModal() {
     let p = team[activePokeIdx];
-    if (isProcessingTurn || p.spdGauge < 100) {
+    if (isProcessingTurn || currentTurnOwner !== 'player') {
         alert('Chưa đến lượt của bạn!');
         return;
     }
@@ -665,11 +702,10 @@ function performGymInBattleSwitch(targetIdx) {
     let newPoke = team[activePokeIdx];
 
     if (typeof log === 'function') log(`🔄 Thu hồi <b>${oldPoke.name}</b>, tung <b>${newPoke.name}</b> vào sân Gym!`);
-    oldPoke.spdGauge -= 100;
 
     if (typeof applyStartBattlePassive === 'function') applyStartBattlePassive(newPoke);
     updateGymBattleUI();
-    gymDetermineNextTurn();
+    gymDetermineFirstTurn();
 }
 
 // === CẬP NHẬT GIAO DIỆN SÀN ĐẤU GYM ===
@@ -680,11 +716,10 @@ function updateGymBattleUI() {
     let vText = p.vLevel > 0 ? ` <span class="v-badge">V${p.vLevel}</span>` : '';
 
     document.getElementById('gym-player-name').innerHTML = `${p.name}${vText} (Lv.${p.level})`;
-    document.getElementById('gym-player-stats').innerText = `HP:${Math.max(0, p.hp)}/${p.maxHp} | MP:${p.mp}/100\nSPD:${typeof getEffectiveSpeed === 'function' ? getEffectiveSpeed(p) : p.speed} (${p.speed}) | Gauge:${Math.round(p.spdGauge)}`;
+    document.getElementById('gym-player-stats').innerText = `HP:${Math.max(0, p.hp)}/${p.maxHp} | MP:${p.mp}/100\nSPD:${typeof getEffectiveSpeed === 'function' ? getEffectiveSpeed(p) : p.speed} (${p.speed})`;
     document.getElementById('gym-player-hp').style.width = `${(Math.max(0, p.hp) / p.maxHp) * 100}%`;
     document.getElementById('gym-player-shield').style.width = `${Math.min(100, (p.shield / p.maxHp) * 100)}%`;
     document.getElementById('gym-player-mp').style.width = `${p.mp}%`;
-    document.getElementById('gym-player-spd').style.width = `${Math.min(100, (p.spdGauge / 100) * 100)}%`;
 
     let pBadge = document.getElementById('gym-player-type-badge');
     pBadge.innerText = p.type;
@@ -694,11 +729,10 @@ function updateGymBattleUI() {
     if (enemyPoke) {
         // Cập nhật tag [1/3] để biết đang đánh con thứ mấy của đối thủ
         document.getElementById('gym-enemy-name').innerText = `${enemyPoke.name} (Lv.${enemyPoke.level}) [${gymActiveEnemyIdx + 1}/3]`;
-        document.getElementById('gym-enemy-stats').innerText = `HP:${Math.max(0, enemyPoke.hp)}/${enemyPoke.maxHp} | MP:${enemyPoke.mp}/100\nSPD:${typeof getEffectiveSpeed === 'function' ? getEffectiveSpeed(enemyPoke) : enemyPoke.speed} (${enemyPoke.speed}) | Gauge:${Math.round(enemyPoke.spdGauge)}`;
+        document.getElementById('gym-enemy-stats').innerText = `HP:${Math.max(0, enemyPoke.hp)}/${enemyPoke.maxHp} | MP:${enemyPoke.mp}/100\nSPD:${typeof getEffectiveSpeed === 'function' ? getEffectiveSpeed(enemyPoke) : enemyPoke.speed} (${enemyPoke.speed})`;
         document.getElementById('gym-enemy-hp').style.width = `${(Math.max(0, enemyPoke.hp) / enemyPoke.maxHp) * 100}%`;
         document.getElementById('gym-enemy-shield').style.width = `${Math.min(100, (enemyPoke.shield / enemyPoke.maxHp) * 100)}%`;
         document.getElementById('gym-enemy-mp').style.width = `${enemyPoke.mp}%`;
-        document.getElementById('gym-enemy-spd').style.width = `${Math.min(100, (enemyPoke.spdGauge / 100) * 100)}%`;
 
         let eBadge = document.getElementById('gym-enemy-type-badge');
         eBadge.innerText = enemyPoke.type;

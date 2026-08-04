@@ -16,7 +16,18 @@ function defaultState() {
   return {
     gems: 1000,
     gold: 100,
-    inventory: { candy: 0, fire_stone: 0, water_stone: 0, thunder_stone: 0, leaf_stone: 0, rock_stone: 0 },
+    inventory: {
+      candy: 0,
+      fire_stone: 0,
+      water_stone: 0,
+      thunder_stone: 0,
+      leaf_stone: 0,
+      rock_stone: 0,
+      poke_ball: 0,
+      great_ball: 0,
+      ultra_ball: 0,
+      master_ball: 0,
+    },
     team: [],
     gameState: {
       player: {
@@ -27,6 +38,7 @@ function defaultState() {
         pokeGacha: 0,
         playerName: '',
         hasCompletedFirstLogin: false,
+        onboardingStage: 0,
       },
       pokedex: [],
     },
@@ -53,6 +65,7 @@ function defaultState() {
     settings: { musicEnabled: true, musicVolume: 0.5 },
     worldPos: { mapId: 'house', x: houseSpawn.x, y: houseSpawn.y },
     prevMapPos: null,
+    onboardingStage: 0,
   }
 }
 
@@ -101,6 +114,7 @@ export function saveGameState() {
         pokeGacha: player.pokeGacha,
         playerName: player.playerName,
         hasCompletedFirstLogin: player.hasCompletedFirstLogin,
+        onboardingStage: player.onboardingStage,
       },
     }
     localStorage.setItem(SAVE_KEY, JSON.stringify(data))
@@ -139,6 +153,10 @@ export function loadGameState() {
     if (data.gems !== undefined) store.gems = data.gems
     if (data.gold !== undefined) store.gold = data.gold
     if (data.inventory) store.inventory = { ...store.inventory, ...data.inventory }
+    // Migration save cũ: bổ sung các loại Pokéball mới với số lượng mặc định bằng 0.
+    for (const ballId of ['poke_ball', 'great_ball', 'ultra_ball', 'master_ball']) {
+      if (!Number.isFinite(store.inventory[ballId])) store.inventory[ballId] = 0
+    }
     if (data.team) store.team = data.team
     if (data.gymBuffs) store.gymBuffs = data.gymBuffs
     if (data.gymProgress) store.gymProgress = { ...store.gymProgress, ...data.gymProgress }
@@ -165,6 +183,15 @@ export function loadGameState() {
       p.pokeGacha = data.playerState.pokeGacha !== undefined ? data.playerState.pokeGacha : 0
       p.playerName = data.playerState.playerName !== undefined ? data.playerState.playerName : ''
       p.hasCompletedFirstLogin = data.playerState.hasCompletedFirstLogin !== undefined ? data.playerState.hasCompletedFirstLogin : false
+      if (data.playerState.onboardingStage !== undefined) {
+        p.onboardingStage = data.playerState.onboardingStage
+      } else {
+        // Migration save cũ: đã hoàn thành onboarding cũ (có starter) → coi như xong luồng
+        // cốt truyện mới (DONE = 4); ngược lại bắt đầu lại từ đầu (HOME = 0).
+        p.onboardingStage = p.hasCompletedFirstLogin ? 4 : 0
+      }
+      // Đồng bộ stage cốt truyện lên field top-level (nguồn đọc thực sự của getOnboardingStage)
+      store.onboardingStage = p.onboardingStage
     }
 
     // Migration: passive cũ -> passives[]

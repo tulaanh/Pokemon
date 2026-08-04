@@ -198,7 +198,6 @@ function createCampaignEnemy(enemyData) {
 
         iv: { hp: 1, atk: 1, def: 1, speed: 1 },
 
-        spdGauge: 0,
         effects: [],
         passive: species.passive,
         passives: [species.passive],

@@ -23,6 +23,7 @@ import {
   applyStartTurnPassive,
   executeSkillAction,
   gainExp,
+  applyPendingLevelUps,
   switchToNextAlivePokemon,
   tickSkillCooldowns,
   canUseSkill,
@@ -30,6 +31,7 @@ import {
   calculateDotDamage,
   isStunned,
   consumeExtraTurnOnEntry,
+  awaitFxIdle,
 } from './battle.js'
 
 // Nhãn đối thủ trong nhật ký
@@ -222,7 +224,7 @@ export function checkStartBattlePassives() {
   if (battle.enemyPoke) applyStartBattlePassive(battle.enemyPoke)
 }
 
-// === HIỆU ỨNG ĐẦU LƯỢT (THÁP: DOT THEO % ATK NGUỒN GÂY RA) ===
+// === HIỆU ỨNG ĐẦU LƯỢT (THÁP: PASSIVE + CHOÁNG + GIẢM THỜI LƯỢNG BUFF/DEBUFF) ===
 function towerProcessStartOfTurnEffects(poke) {
   let isPlayer = poke === store.team[battle.activePokeIdx]
   let pokeTitle = isPlayer ? `<b>${poke.name}</b>` : `<b>${poke.name} ${ENEMY_TAG}</b>`
@@ -235,6 +237,27 @@ function towerProcessStartOfTurnEffects(poke) {
     return 'stunned'
   }
 
+  // Buff/debuff (không phải DoT) giảm thời lượng ở đầu lượt
+  const dotEffectTypes = ['burn', 'shock', 'poison', 'bleed']
+  for (let i = poke.effects.length - 1; i >= 0; i--) {
+    let eff = poke.effects[i]
+    if (dotEffectTypes.includes(eff.type)) continue
+    eff.duration--
+    if (eff.duration <= 0) {
+      battleLog(`✨ Hiệu ứng [${eff.name}] trên ${pokeTitle} đã hết hạn.`)
+      poke.effects.splice(i, 1)
+    }
+  }
+
+  return false
+}
+
+// === SÁT THƯƠNG ĐỐT CUỐI LƯỢT (THÁP: DOT THEO % ATK NGUỒN GÂY RA) ===
+// Pokémon bị dính hiệu ứng đốt chịu sát thương vào CUỐI lượt của chính nó (chuẩn Pokémon).
+function towerProcessEndOfTurnDot(poke) {
+  let isPlayer = poke === store.team[battle.activePokeIdx]
+  let pokeTitle = isPlayer ? `<b>${poke.name}</b>` : `<b>${poke.name} ${ENEMY_TAG}</b>`
+
   const dotEffectTypes = ['burn', 'shock', 'poison', 'bleed']
 
   for (let i = poke.effects.length - 1; i >= 0; i--) {
@@ -246,18 +269,18 @@ function towerProcessStartOfTurnEffects(poke) {
       let sourceInfo = eff.sourceName ? ` (từ ${eff.sourceName})` : ''
       battleLog(`🔥 ${pokeTitle} chịu <b>${dmg}</b> sát thương từ [${eff.name}]${sourceInfo}!`)
       pushFx({ type: 'dot', side: fxSide(poke), dmg, hpPct: getHpPct(poke) })
-    }
 
-    eff.duration--
-    if (eff.duration <= 0) {
-      battleLog(`✨ Hiệu ứng [${eff.name}] trên ${pokeTitle} đã hết hạn.`)
-      poke.effects.splice(i, 1)
+      eff.duration--
+      if (eff.duration <= 0) {
+        battleLog(`✨ Hiệu ứng [${eff.name}] trên ${pokeTitle} đã hết hạn.`)
+        poke.effects.splice(i, 1)
+      }
     }
   }
 
   if (poke.hp <= 0) {
     if (isPlayer) {
-      battleLog(`💀 <b>${poke.name}</b> đã gục ngã vì mất máu đầu lượt!`)
+      battleLog(`💀 <b>${poke.name}</b> đã gục ngã vì sát thương đốt cuối lượt!`)
       if (!switchToNextAlivePokemon()) {
         showTowerResult(false)
         return true
@@ -325,6 +348,8 @@ function towerStartNextTurn() {
   if (battle.currentTurnOwner === 'player') {
     let res = towerProcessStartOfTurnEffects(p)
     if (res === 'stunned') {
+      // Mất lượt nhưng vẫn chịu sát thương đốt cuối lượt
+      if (towerProcessEndOfTurnDot(p)) return
       battle.currentTurnOwner = 'bot'
       battle.isProcessingTurn = false
       towerStartNextTurn()
@@ -336,6 +361,8 @@ function towerStartNextTurn() {
   } else {
     let res = towerProcessStartOfTurnEffects(battle.enemyPoke)
     if (res === 'stunned') {
+      // Mất lượt nhưng vẫn chịu sát thương đốt cuối lượt
+      if (towerProcessEndOfTurnDot(battle.enemyPoke)) return
       battle.currentTurnOwner = 'player'
       battle.isProcessingTurn = false
       towerStartNextTurn()
@@ -350,7 +377,9 @@ function towerStartNextTurn() {
 
 function towerExecuteBotTurn() {
   battle.isProcessingTurn = true
-  setTimeout(() => {
+  setTimeout(async () => {
+    await awaitFxIdle()
+
     if (battle.enemyPoke.hp <= 0) return
 
     let p = store.team[battle.activePokeIdx]
@@ -364,11 +393,20 @@ function towerExecuteBotTurn() {
 
     tickSkillCooldowns(battle.enemyPoke)
 
+    await awaitFxIdle()
+
     if (battle.enemyPoke.hp <= 0) {
       handleTowerEnemyDefeated()
       battle.isProcessingTurn = false
       return
     }
+
+    // CUỐI lượt của địch: sát thương đốt trên chính địch
+    if (towerProcessEndOfTurnDot(battle.enemyPoke)) {
+      battle.isProcessingTurn = false
+      return
+    }
+    await awaitFxIdle()
 
     if (p.hp <= 0) {
       battleLog(`💀 <b>${p.name}</b> đã gục ngã!`)
@@ -387,7 +425,8 @@ function towerExecuteBotTurn() {
 
     if (battle.extraTurnOwner === 'bot') {
       battle.extraTurnOwner = null
-      towerDetermineFirstTurn()
+      battle.currentTurnOwner = 'player'
+      towerStartNextTurn()
       return
     }
 
@@ -396,7 +435,7 @@ function towerExecuteBotTurn() {
   }, 800)
 }
 
-export function useTowerSkill(skillIdx) {
+export async function useTowerSkill(skillIdx) {
   if (!canUseSkill()) return
 
   let p = store.team[battle.activePokeIdx]
@@ -416,17 +455,23 @@ export function useTowerSkill(skillIdx) {
 
   tickSkillCooldowns(p)
 
+  await awaitFxIdle()
+
   if (battle.enemyPoke.hp <= 0) {
     handleTowerEnemyDefeated()
     battle.isProcessingTurn = false
     return
   }
 
+  // CUỐI lượt của người chơi: sát thương đốt trên chính Pokémon đang xuất trận
   battle.isProcessingTurn = false
+  if (towerProcessEndOfTurnDot(p)) return
+  await awaitFxIdle()
 
   if (battle.extraTurnOwner === 'player') {
     battle.extraTurnOwner = null
-    towerDetermineFirstTurn()
+    battle.currentTurnOwner = 'bot'
+    towerStartNextTurn()
     return
   }
 
@@ -516,6 +561,7 @@ export function handleTowerFloorCleared() {
 }
 
 export function showTowerResult(win) {
+  applyPendingLevelUps()
   if (win) {
     addQuestProgress('wins', 1)
   } else {

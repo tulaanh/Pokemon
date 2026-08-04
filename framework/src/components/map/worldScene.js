@@ -14,6 +14,7 @@ import {
 } from '../../game/worldmap.js'
 import { TOWN_ID, getMap, getMapTransitions } from '../../game/maps.js'
 import { store } from '../../game/store.js'
+import { rollWildEncounter, createWildPokemon, DEFAULT_ENCOUNTERS } from '../../game/capture.js'
 
 // Runtime truyền từ Vue (gọi setWorldRuntime TRƯỚC khi khởi tạo Phaser.Game)
 // để chắc chắn có giá trị khi scene create() chạy (bất kể timing boot của Phaser).
@@ -25,6 +26,15 @@ export function setWorldRuntime(rt) {
 }
 
 const PLAYER_SPEED = 160
+
+// Trạng thái encounter toàn cục (chỉ tồn tại trong session, không lưu vào save)
+const wildEncounterState = {
+  active: null,        // { id, col, row, x, y, pokemon, sprite, mapId }
+  spawnTimer: 0,       // Timer để spawn theo thời gian
+  distanceMoved: 0,    // Khoảng cách đã di chuyển
+  lastPlayerPos: { x: 0, y: 0 },
+  cooldownTimer: 0,    // Cooldown sau khi bắt/thất bại
+}
 
 // Property tương tác trên TILE (gid) — value >= 2, ghi đè property layer nếu có
 function tileInteractProp(json, gid) {
@@ -61,6 +71,17 @@ export class WorldScene extends Phaser.Scene {
     this.spawns = this.mapInfo.spawns || {}
     this.moveSpeed = PLAYER_SPEED / this.mapInfo.zoom // giữ tốc độ trên màn hình nhất quán giữa các map
     this.locked = false
+
+    // Cấu hình encounter từ runtime (được truyền từ WorldMap.vue qua setWorldRuntime)
+    this.encounterConfig = data?.encounters || runtime.encounters || this.mapInfo.encounters || { enabled: false }
+    this.encounterState = wildEncounterState
+    // Reset encounter khi đổi map
+    if (this.encounterState.active && this.encounterState.active.mapId !== this.mapId) {
+      this.clearWildEncounter()
+    }
+    this.encounterState.active = this.encounterState.active?.mapId === this.mapId ? this.encounterState.active : null
+    this.encounterState.lastPlayerPos = { x: this.startPos.x, y: this.startPos.y }
+    this.encounterState.distanceMoved = 0
   }
 
   // Khóa/ mở khóa di chuyển nhân vật (dùng khi hội thoại onboarding đang mở)
@@ -77,6 +98,9 @@ export class WorldScene extends Phaser.Scene {
 
   // tileset đã được WorldMap.vue resolve sẵn từ JSON (maps.getMapTilesets)
   preload() {
+    // Báo tiến trình tải asset (map JSON + tileset PNG + sprite player) cho màn hình chuyển cảnh
+    this.load.off('progress')
+    this.load.on('progress', (v) => runtime.callbacks.onLoadProgress?.(v))
     this.load.spritesheet('player', '/images/map/player_red.png', {
       frameWidth: 16,
       frameHeight: 32,
@@ -107,6 +131,16 @@ export class WorldScene extends Phaser.Scene {
       this.buildLabProps()
     }
 
+    // Cửa hàng — vẽ nhân viên bán hàng đứng sau quầy (object store_npc)
+    if (this.mapId === 'store') {
+      this.buildStoreProps()
+    }
+
+    // Cửa hàng Gacha — vẽ nhân viên đứng trước máy gacha (object gacha_npc)
+    if (this.mapId === 'gacha_store') {
+      this.buildGachaStoreProps()
+    }
+
     // Marker chỉ dẫn cho người chơi mới (trỏ tới cửa đích)
     this.buildOnboardingMarker()
 
@@ -114,13 +148,19 @@ export class WorldScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(this.mapInfo.kind === 'tiled' ? '#000000' : '#7dd3fc')
     this.cameras.main.setZoom(this.mapInfo.zoom)
     this.cameras.main.setRoundPixels(true)
-    const zoomedW = this.mapInfo.width * this.mapInfo.zoom
-    const zoomedH = this.mapInfo.height * this.mapInfo.zoom
+    // Ưu tiên kích thước thực từ JSON (đã ghi trong buildTiled); fallback maps.js cho map legacy
+    const mapW = this.actualMapW || this.mapInfo.width
+    const mapH = this.actualMapH || this.mapInfo.height
+    const zoomedW = mapW * this.mapInfo.zoom
+    const zoomedH = mapH * this.mapInfo.zoom
     if (zoomedW <= this.scale.width && zoomedH <= this.scale.height) {
       // Map vừa đủ màn hình → căn giữa nguyên bản đồ (không follow)
-      this.cameras.main.centerOn(this.mapInfo.width / 2, this.mapInfo.height / 2)
+      this.cameras.main.centerOn(mapW / 2, mapH / 2)
     } else {
-      this.cameras.main.setBounds(0, 0, this.mapInfo.width, this.mapInfo.height)
+      this.cameras.main.setBounds(0, 0, mapW, mapH)
+      // Căn giữa camera tại tâm map để người chơi thấy ngay toàn bộ phòng/map
+      // (follow vẫn bật để trôi theo nhân vật khi di chuyển)
+      this.cameras.main.centerOn(mapW / 2, mapH / 2)
       this.cameras.main.startFollow(this.player, true, 0.12, 0.12)
     }
 
@@ -221,6 +261,10 @@ export class WorldScene extends Phaser.Scene {
     })
 
     const map = this.make.tilemap({ key: 'current' })
+    // Kích thước thực (px) từ JSON — camera/bounds tin kích thước này thay vì maps.js,
+    // tránh lệch camera nếu export map đổi kích thước mà quên cập nhật maps.js.
+    this.actualMapW = map.width * map.tileWidth
+    this.actualMapH = map.height * map.tileHeight
     if (!this.mapInfo.tilesets?.length) {
       console.error('❌ Không resolve được tileset cho map Tiled:', this.mapId)
       return
@@ -269,6 +313,9 @@ export class WorldScene extends Phaser.Scene {
     // Các layer tương tác khác (healing / quest / dialogue)
     this.interactPoints.push(...this.buildInteractPoints(json, map.tileWidth))
 
+    // NPC marker (object tên `*_npc` trong objectgroup doors) — điểm tương tác đứng cạnh quầy
+    this.interactPoints.push(...this.buildNpcPoints(json, map.tileWidth))
+
     // Điểm nói chuyện với Giáo sư Oak (ô 7,9 — ngay dưới bàn thí nghiệm)
     if (this.mapId === 'lab') {
       this.interactPoints.push({
@@ -303,6 +350,57 @@ export class WorldScene extends Phaser.Scene {
     g.fillRect(112, 85, 16, 3)
   }
 
+  // Vẽ nhân viên bán hàng đứng sau quầy trong cửa hàng — mỗi object `*_npc`
+  // trong objectgroup doors của store.json (đồng bộ vị trí với buildNpcPoints).
+  buildStoreProps() {
+    const json = this.cache.json.get('mapjson_' + this.mapId)
+    const doors = (json?.layers || []).find((l) => l.type === 'objectgroup' && l.name === 'doors')
+    const npcs = (doors?.objects || []).filter((o) => /^.+_npc$/.test(o.name || ''))
+    for (const obj of npcs) {
+      const cx = obj.x + (obj.width || 0) / 2
+      const cy = obj.y + (obj.height || 0) / 2
+      const g = this.add.graphics()
+      g.setDepth(5)
+      // Thân (tạp dề xanh của nhân viên)
+      g.fillStyle(0x38bdf8, 1)
+      g.fillRoundedRect(cx - 7, cy - 2, 14, 24, 6)
+      // Đầu
+      g.fillStyle(0xfcd34d, 1)
+      g.fillCircle(cx, cy - 11, 8)
+      // Tóc
+      g.fillStyle(0x92400e, 1)
+      g.fillCircle(cx, cy - 13, 5)
+      g.fillRect(cx - 8, cy - 17, 16, 3)
+    }
+  }
+
+  // Vẽ nhân viên bán hàng Gacha đứng giữa các máy gacha trong cửa hàng Gacha — mỗi
+  // object `*_npc` trong objectgroup doors của gacha_store.json (đồng bộ buildNpcPoints).
+  buildGachaStoreProps() {
+    const json = this.cache.json.get('mapjson_' + this.mapId)
+    const doors = (json?.layers || []).find((l) => l.type === 'objectgroup' && l.name === 'doors')
+    const npcs = (doors?.objects || []).filter((o) => /^.+_npc$/.test(o.name || ''))
+    for (const obj of npcs) {
+      const cx = obj.x + (obj.width || 0) / 2
+      const cy = obj.y + (obj.height || 0) / 2
+      const g = this.add.graphics()
+      g.setDepth(5)
+      // Thân (đồng phục tím của nhân viên gacha)
+      g.fillStyle(0xc084fc, 1)
+      g.fillRoundedRect(cx - 7, cy - 2, 14, 24, 6)
+      // Đầu
+      g.fillStyle(0xfcd34d, 1)
+      g.fillCircle(cx, cy - 11, 8)
+      // Tóc (hồng)
+      g.fillStyle(0xec4899, 1)
+      g.fillCircle(cx, cy - 13, 5)
+      g.fillRect(cx - 8, cy - 17, 16, 3)
+      // Quả bóng gacha cầm tay
+      g.fillStyle(0xf43f5e, 1)
+      g.fillCircle(cx + 10, cy - 4, 3)
+    }
+  }
+
   // Marker nhấp nháy trỏ tới cửa đích khi mới chơi (chỉ hiện trên map đang ở)
   buildOnboardingMarker() {
     const t = runtime.onboardingTarget
@@ -323,6 +421,15 @@ export class WorldScene extends Phaser.Scene {
       ease: 'Sine.inOut',
     })
     this.onboardMarker = marker
+  }
+
+  // Vẽ lại marker chỉ dẫn khi stage cốt truyện đổi (không cần restart scene)
+  refreshOnboardingMarker() {
+    if (this.onboardMarker) {
+      this.onboardMarker.destroy()
+      this.onboardMarker = null
+    }
+    this.buildOnboardingMarker()
   }
 
   // Layer va chạm: mọi tilelayer có property value = 1 → tile ≠ 0 là ô chặn
@@ -394,6 +501,35 @@ export class WorldScene extends Phaser.Scene {
     return points
   }
 
+  // Điểm tương tác NPC từ objectgroup `doors` — object có tên kết thúc `_npc`
+  // (marker điểm đánh dấu, rect 0x0) → tạo ô tương tác cỡ tile quanh tâm.
+  // Object NPC không có property `to` nên parseDoors bỏ qua → không thành cửa.
+  buildNpcPoints(json, tileSize) {
+    const points = []
+    const layer = (json.layers || []).find((l) => l.type === 'objectgroup' && l.name === 'doors')
+    if (!layer) return points
+    for (const obj of layer.objects || []) {
+      if (!/^.+_npc$/.test(obj.name || '')) continue
+      const cx = obj.x + (obj.width || 0) / 2
+      const cy = obj.y + (obj.height || 0) / 2
+      const col = Math.floor(cx / tileSize)
+      const row = Math.floor(cy / tileSize)
+      points.push({
+        id: `npc-${obj.name}-${col}-${row}`,
+        npcId: obj.name,
+        col,
+        row,
+        type: 'npc',
+        name: obj.name,
+        value: 2,
+        x: col * tileSize + tileSize / 2,
+        y: row * tileSize + tileSize,
+        radius: tileSize,
+      })
+    }
+    return points
+  }
+
   // ======================================================================
   // NGƯỜI CHƠI
   // ======================================================================
@@ -420,7 +556,7 @@ export class WorldScene extends Phaser.Scene {
       })
     }
 
-    this.physics.world.setBounds(0, 0, this.mapInfo.width, this.mapInfo.height)
+    this.physics.world.setBounds(0, 0, this.actualMapW || this.mapInfo.width, this.actualMapH || this.mapInfo.height)
 
     this.player = this.physics.add.sprite(this.startPos.x, this.startPos.y, 'player', 0)
     const s = this.mapInfo.playerScale
@@ -441,7 +577,7 @@ export class WorldScene extends Phaser.Scene {
   // ======================================================================
   // VÒNG LẶP CHÍNH
   // ======================================================================
-  update() {
+  update(time, delta) {
     if (!this.player || !this.cursors) return
     if (this.locked) return
 
@@ -488,6 +624,9 @@ export class WorldScene extends Phaser.Scene {
     this.drawDebugBox()
     this.checkInteraction()
     this.callbacks.onPlayerPos?.(this.player.x, this.player.y)
+
+    // Cập nhật wild encounter
+    this.updateWildEncounter(delta)
   }
 
   // Vẽ lại hitbox mỗi frame (chỉ dùng để debug): body vật lý (xanh) +
@@ -584,5 +723,215 @@ export class WorldScene extends Phaser.Scene {
     }
     // Pass the full transition data so caller can handle special cases (e.g., gym)
     this.callbacks.onMapChange?.(t.to, t.toSpawn, t)
+  }
+
+  // ======================================================================
+  // POKÉMON HOANG DÃ (WILD ENCOUNTER)
+  // ======================================================================
+
+  // Kiểm tra xem tile có thể spawn Pokémon không (không phải tường, cửa, NPC, vật cản)
+  isValidSpawnTile(col, row) {
+    const ts = this.mapInfo.tileSize || 16
+    const x = col * ts + ts / 2
+    const y = row * ts + ts / 2
+
+    // Kiểm tra va chạm với walls
+    for (const wall of this.walls?.getChildren() || []) {
+      if (x >= wall.left && x <= wall.right && y >= wall.top && y <= wall.bottom) {
+        return false
+      }
+    }
+
+    // Kiểm tra trùng với interactPoints (cửa, NPC, healing, v.v.)
+    for (const pt of this.interactPoints) {
+      if (pt.col === col && pt.row === row) {
+        return false
+      }
+    }
+
+    // Kiểm tra trùng với player
+    const playerCol = Math.floor(this.player.x / ts)
+    const playerRow = Math.floor(this.player.y / ts)
+    if (Math.abs(playerCol - col) <= 1 && Math.abs(playerRow - row) <= 1) {
+      return false
+    }
+
+    // Kiểm tra trùng với encounter đang active
+    if (this.encounterState.active && this.encounterState.active.col === col && this.encounterState.active.row === row) {
+      return false
+    }
+
+    return true
+  }
+
+  // Tìm vị trí spawn hợp lệ ngẫu nhiên trong phạm vi quanh player
+  findRandomSpawnPosition() {
+    const ts = this.mapInfo.tileSize || 16
+    const mapW = this.mapInfo.width
+    const mapH = this.mapInfo.height
+    const maxCol = Math.floor(mapW / ts)
+    const maxRow = Math.floor(mapH / ts)
+
+    const playerCol = Math.floor(this.player.x / ts)
+    const playerRow = Math.floor(this.player.y / ts)
+
+    // Tìm trong bán kính 10-20 tile quanh player
+    const minRadius = 10
+    const maxRadius = 20
+    const candidates = []
+
+    for (let r = minRadius; r <= maxRadius; r++) {
+      for (let c = -r; c <= r; c++) {
+        const cols = [playerCol + c, playerCol - c]
+        const rows = [playerRow + r, playerRow - r]
+        for (const col of cols) {
+          for (const row of rows) {
+            if (col >= 0 && col < maxCol && row >= 0 && row < maxRow) {
+              if (this.isValidSpawnTile(col, row)) {
+                candidates.push({ col, row })
+              }
+            }
+          }
+        }
+        // Cạnh ngang
+        for (const col of [playerCol - r, playerCol + r]) {
+          for (let row = playerRow - r + 1; row <= playerRow + r - 1; row++) {
+            if (col >= 0 && col < maxCol && row >= 0 && row < maxRow) {
+              if (this.isValidSpawnTile(col, row)) {
+                candidates.push({ col, row })
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (candidates.length === 0) return null
+
+    // Chọn ngẫu nhiên từ candidates
+    return candidates[Math.floor(Math.random() * candidates.length)]
+  }
+
+  // Spawn Pokémon hoang dã
+  spawnWildPokemon() {
+    if (!this.encounterConfig.enabled) return
+    if (this.encounterState.active) return // Đã có encounter
+    if (this.encounterState.cooldownTimer > 0) return
+
+    // Kiểm tra xem có modal/hội thoại đang mở không
+    if (this.locked) return
+
+    const wildPokemon = rollWildEncounter(this.encounterConfig)
+    if (!wildPokemon) return
+
+    const spawnPos = this.findRandomSpawnPosition()
+    if (!spawnPos) return
+
+    const ts = this.mapInfo.tileSize || 16
+    const x = spawnPos.col * ts + ts / 2
+    const y = spawnPos.row * ts + ts / 2
+
+    // Tạo sprite cho Pokémon (dùng emoji tạm thời, sau sẽ thay bằng sprite thật)
+    const sprite = this.add.text(x, y - 16, wildPokemon.icon || '❓', {
+      fontSize: '24px',
+    }).setOrigin(0.5, 1).setDepth(100000)
+
+    // Hiệu ứng nhấp nháy
+    this.tweens.add({
+      targets: sprite,
+      alpha: 0.5,
+      duration: 500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.inOut',
+    })
+
+    // Tạo interact point cho wild Pokémon
+    const interactPoint = {
+      id: `wild-${Date.now()}`,
+      col: spawnPos.col,
+      row: spawnPos.row,
+      type: 'wild',
+      name: 'wild',
+      value: 2,
+      x,
+      y,
+      radius: ts,
+      pokemon: wildPokemon,
+      sprite,
+    }
+
+    this.interactPoints.push(interactPoint)
+    this.encounterState.active = {
+      ...interactPoint,
+      mapId: this.mapId,
+    }
+  }
+
+  // Xử lý khi player tương tác với Pokémon hoang dã
+  handleWildEncounter(interactPoint) {
+    if (!interactPoint.pokemon) return
+
+    // Xóa encounter khỏi map
+    this.clearWildEncounter()
+
+    // Gọi callback để mở battle
+    this.callbacks.onWildEncounter?.(interactPoint.pokemon)
+  }
+
+  // Xóa wild encounter hiện tại
+  clearWildEncounter() {
+    if (this.encounterState.active) {
+      // Xóa sprite
+      if (this.encounterState.active.sprite) {
+        this.encounterState.active.sprite.destroy()
+      }
+      // Xóa khỏi interactPoints
+      const idx = this.interactPoints.findIndex(pt => pt.id === this.encounterState.active.id)
+      if (idx !== -1) {
+        this.interactPoints.splice(idx, 1)
+      }
+      this.encounterState.active = null
+    }
+    // Bắt đầu cooldown
+    this.encounterState.cooldownTimer = this.encounterConfig.cooldownMs || 12000
+  }
+
+  // Cập nhật encounter timer (gọi trong update)
+  updateWildEncounter(delta) {
+    if (!this.encounterConfig.enabled) return
+
+    // Giảm cooldown timer
+    if (this.encounterState.cooldownTimer > 0) {
+      this.encounterState.cooldownTimer -= delta
+      if (this.encounterState.cooldownTimer < 0) this.encounterState.cooldownTimer = 0
+    }
+
+    // Tăng spawn timer
+    this.encounterState.spawnTimer += delta
+
+    // Kiểm tra spawn theo thời gian
+    if (this.encounterState.spawnTimer >= (this.encounterConfig.intervalMs || 9000)) {
+      this.encounterState.spawnTimer = 0
+      this.spawnWildPokemon()
+    }
+
+    // Kiểm tra spawn theo di chuyển
+    if (this.player) {
+      const dx = this.player.x - this.encounterState.lastPlayerPos.x
+      const dy = this.player.y - this.encounterState.lastPlayerPos.y
+      const dist = Math.hypot(dx, dy)
+      this.encounterState.distanceMoved += dist
+      this.encounterState.lastPlayerPos.x = this.player.x
+      this.encounterState.lastPlayerPos.y = this.player.y
+
+      // Mỗi 200px di chuyển có cơ hội spawn
+      if (this.encounterState.distanceMoved >= 200) {
+        this.encounterState.distanceMoved = 0
+        if (Math.random() < (this.encounterConfig.chance || 0.25)) {
+          this.spawnWildPokemon()
+        }
+      }
+    }
   }
 }

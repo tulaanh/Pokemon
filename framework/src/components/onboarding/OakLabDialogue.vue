@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { store, addPokemonToInventory, saveGameState } from '../../game/store.js'
+import { store, addPokemonToInventory } from '../../game/store.js'
 import { STARTER_NAMES, STARTER_RARITY, STARTER_LEVEL, getStarterData, buildStarterPoke } from '../../game/onboarding.js'
+import { setOnboardingStage, STORY_STAGES } from '../../game/story.js'
 import RarityText from '../RarityText.vue'
 import StarterCard from '../StarterCard.vue'
 
@@ -61,9 +62,8 @@ function finish() {
   if (!starterPoke) return
 
   store.gameState.player.playerName = name
-  store.gameState.player.hasCompletedFirstLogin = true
   addPokemonToInventory(starterPoke)
-  saveGameState()
+  setOnboardingStage(STORY_STAGES.LAB_DONE)
   emit('complete', { name, starterName: starterPoke.name })
 }
 

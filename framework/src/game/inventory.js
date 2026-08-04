@@ -68,6 +68,23 @@ export function togglePokedex(pokemonUniqueId) {
   return { added: true }
 }
 
+/**
+ * Thêm Pokémon vào Pokédex (KHÔNG gỡ — dùng cho sự kiện cốt truyện, vd Y tá đăng ký starter).
+ * @returns {{ added: boolean, already?: boolean, full?: boolean, count?: number }}
+ */
+export function addToPokedex(pokemonUniqueId) {
+  pokemonUniqueId = String(pokemonUniqueId)
+  if (store.gameState.pokedex.indexOf(pokemonUniqueId) !== -1) {
+    return { added: false, already: true }
+  }
+  if (store.gameState.pokedex.length >= POKEDEX_LIMIT) {
+    return { added: false, full: true, count: store.gameState.pokedex.length }
+  }
+  store.gameState.pokedex.push(pokemonUniqueId)
+  saveGameState()
+  return { added: true }
+}
+
 // ==========================================
 // BÁN POKÉMON (VÀNG / GEM) - GIẢI PHÓNG KHO ĐỒ
 // ==========================================

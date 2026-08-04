@@ -62,6 +62,19 @@ function generateSkillInstance(type, skillGroup, pokeRarity, pokeLevel = 1) {
     return skillInst;
 }
 
+// Đảm bảo Pokémon có đủ kỹ năng theo cấp độ:
+// Lv >= 5 → có sẵn Skill2, Lv >= 10 → có sẵn Ultimate.
+// Dùng cho Pokémon mới từ Gacha và cho Pokémon cũ khi nạp save.
+function ensureSkillsByLevel(p) {
+    if (!p || !p.skills || !p.type || !p.rarity) return;
+    if (p.level >= 5 && !p.skills.some(s => s.type === 'Skill2')) {
+        p.skills.push(generateSkillInstance(p.type, 'Skill2', p.rarity, p.level));
+    }
+    if (p.level >= 10 && !p.skills.some(s => s.type === 'Ultimate')) {
+        p.skills.push(generateSkillInstance(p.type, 'Ultimate', p.rarity, p.level));
+    }
+}
+
 // Hàm bổ trợ thực hiện 1 lượt quay (Single Roll)
 function executeSingleRoll() {
     let rand = Math.random() * 100;
@@ -100,7 +113,6 @@ function executeSingleRoll() {
             def: 0.9 + Math.random() * 0.2,
             speed: 0.9 + Math.random() * 0.2
         },
-        spdGauge: 0,
         effects: [],
         passive: null,
         passives: [rollPassive(species.type)],
@@ -112,6 +124,7 @@ function executeSingleRoll() {
     };
     newPoke.passive = newPoke.passives[0];
 
+    ensureSkillsByLevel(newPoke);
     recalculatePokemonStats(newPoke);
     newPoke.hp = newPoke.maxHp;
 
@@ -243,7 +256,6 @@ function executeBannerRoll(bannerId) {
             def: 0.9 + Math.random() * 0.2,
             speed: 0.9 + Math.random() * 0.2
         },
-        spdGauge: 0,
         effects: [],
         passive: null,
         passives: [rollPassive(species.type)],
@@ -255,6 +267,7 @@ function executeBannerRoll(bannerId) {
     };
     newPoke.passive = newPoke.passives[0];
 
+    ensureSkillsByLevel(newPoke);
     recalculatePokemonStats(newPoke);
     newPoke.hp = newPoke.maxHp;
 
@@ -407,7 +420,6 @@ function redeemPokemon(pokemonName, cost) {
             def: 0.9 + Math.random() * 0.2,
             speed: 0.9 + Math.random() * 0.2
         },
-        spdGauge: 0,
         effects: [],
         passive: null,
         passives: [rollPassive(species.type)],
@@ -419,6 +431,7 @@ function redeemPokemon(pokemonName, cost) {
     };
     newPoke.passive = newPoke.passives[0];
 
+    ensureSkillsByLevel(newPoke);
     recalculatePokemonStats(newPoke);
     newPoke.hp = newPoke.maxHp;
 

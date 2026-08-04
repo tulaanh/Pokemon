@@ -9,6 +9,34 @@ import { EVOLUTIONS, EVOLUTION_STONES } from './data.js'
 import { applyEvolutions, evolvePokemon, getStoneInfo } from './evolution.js'
 import { addQuestProgress } from './daily.js'
 
+// ==========================================
+// POKÉBALL CATALOG
+// ==========================================
+
+export const POKEBALLS = [
+  { id: 'pokeball', name: 'Poké Ball', emoji: '🔴', price: 200, catchRate: 1.0, icon: '/images/items/pokeball.png', description: 'Bóng bắt cơ bản' },
+  { id: 'greatball', name: 'Great Ball', emoji: '🔵', price: 600, catchRate: 1.5, icon: '/images/items/great-ball.png', description: 'Bóng bắt tốt hơn Poké Ball' },
+  { id: 'ultraball', name: 'Ultra Ball', emoji: '🟡', price: 1200, catchRate: 2.0, icon: '/images/items/ultra-ball.png', description: 'Bóng bắt hiệu quả cao' },
+  { id: 'masterball', name: 'Master Ball', emoji: '🟣', price: 50000, catchRate: 255, icon: '/images/items/master-ball.png', description: 'Bắt chắc 100% (hiếm)' },
+]
+
+export function getPokeballCatalog() {
+  return POKEBALLS.map((b) => ({ ...b, count: store.inventory[b.id] || 0 }))
+}
+
+export function buyPokeball(ballId, amount = 1) {
+  const ball = POKEBALLS.find((b) => b.id === ballId)
+  if (!ball) return { ok: false, message: 'Không tìm thấy loại bóng này!' }
+  let cost = ball.price * amount
+  if (store.gold < cost) {
+    return { ok: false, message: `❌ Không đủ Vàng! Bạn cần ${cost.toLocaleString()} Vàng để mua ${amount} ${ball.name}.` }
+  }
+  store.gold -= cost
+  store.inventory[ballId] = (store.inventory[ballId] || 0) + amount
+  saveGameState()
+  return { ok: true, message: `${ball.emoji} Đã mua ${amount} ${ball.name} với giá ${cost.toLocaleString()} Vàng!`, amount, cost }
+}
+
 export const RARE_CANDY_PRICE = 1000
 export const LEVEL_CAP = 90
 

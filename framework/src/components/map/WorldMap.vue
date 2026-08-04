@@ -8,8 +8,12 @@ import { WorldScene, setWorldRuntime } from './worldScene.js'
 import { LOCATIONS } from '../../game/world.js'
 import { getMap, TOWN_ID, getMapTilesets, getMapSpawn } from '../../game/maps.js'
 import { showToast } from '../ui/toast.js'
+import { openSettings } from '../ui/settingsModal.js'
+import { beginScreenTransition, endScreenTransition, setScreenProgress } from '../../game/screenTransition.js'
+import { getOnboardingStage, setOnboardingStage, STORY_STAGES } from '../../game/story.js'
 import OakLabDialogue from '../onboarding/OakLabDialogue.vue'
 import HomeStartDialogue from '../onboarding/HomeStartDialogue.vue'
+import HospitalStoryDialogue from '../onboarding/HospitalStoryDialogue.vue'
 import HospitalModal from './HospitalModal.vue'
 
 const emit = defineEmits(['open'])
@@ -22,6 +26,7 @@ const oakDialogueOpen = ref(false) // hội thoại onboarding Giáo sư Oak
 const homeTalkOpen = ref(false) // tự thoại khi lần đầu xuất hiện trong nhà
 const homeTalkShown = ref(false) // đã xem tự thoại lần đầu chưa (reset khi Reset Game)
 const hospitalOpen = ref(false) // hội thoại y tá bệnh viện
+const hospitalStoryOpen = ref(false) // hội thoại cốt truyện Y tá (Pokédex + hướng dẫn combat)
 const playerX = ref(store.worldPos?.x ?? 800)
 const playerY = ref(store.worldPos?.y ?? 520)
 const cameraX = ref(0)
@@ -35,7 +40,8 @@ let resizeObserver = null
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
 
-const onboardingActive = computed(() => !store.gameState.player.hasCompletedFirstLogin)
+const onboardingStage = computed(() => getOnboardingStage())
+const onboardingActive = computed(() => onboardingStage.value < STORY_STAGES.DONE)
 
 // Thông tin người chơi cho HUD (bấm Tab)
 const playerInfo = computed(() => store.gameState.player)
@@ -48,11 +54,33 @@ const expText = computed(
 )
 const pokedexCount = computed(() => store.gameState.pokedex.length)
 
-// Marker chỉ dẫn khi mới chơi: trỏ tới cửa đích theo từng map
+// Marker chỉ dẫn theo stage cốt truyện: trỏ tới cửa đích của từng map
 function getOnboardingTarget(mapId) {
   if (!onboardingActive.value) return null
-  if (mapId === 'house') return { mapId: 'house', col: 2, row: 0 } // cửa ra nhà
-  if (mapId === 'town') return { mapId: 'town', col: 45, row: 28 } // cửa Phòng Lab (tòa nhà phải)
+  const stage = onboardingStage.value
+
+  // Giai đoạn 0: nhà → thị trấn → lab (nhận starter từ Oak)
+  if (stage === STORY_STAGES.HOME) {
+    if (mapId === 'house') return { mapId: 'house', col: 2, row: 0 } // cửa ra nhà
+    if (mapId === 'town') return { mapId: 'town', col: 45, row: 28 } // cửa Phòng Lab (tòa nhà phải)
+    if (mapId === 'lab') return { mapId: 'lab', col: 7, row: 9 } // Giáo sư Oak
+    return null
+  }
+
+  // Giai đoạn 1-2: đến Bệnh viện → nói chuyện với Y tá
+  if (stage === STORY_STAGES.LAB_DONE || stage === STORY_STAGES.HOSPITAL) {
+    if (mapId === 'town') return { mapId: 'town', col: 17, row: 28 } // cửa bệnh viện
+    if (mapId === 'hospital') return { mapId: 'hospital', col: 8, row: 6 } // y tá
+    return null
+  }
+
+  // Giai đoạn 3: đến cửa Chiến dịch ⚔️
+  if (stage === STORY_STAGES.GO_CAMPAIGN) {
+    if (mapId === 'hospital') return { mapId: 'hospital', col: 8, row: 12 } // cửa ra thị trấn
+    if (mapId === 'town') return { mapId: 'town', col: 8, row: 12 } // cửa chiến dịch
+    return null
+  }
+
   return null
 }
 const onboardingTarget = computed(() => getOnboardingTarget(currentMapId.value))
@@ -126,9 +154,9 @@ const getModeLabel = (mode) => {
 }
 
 // --- METHODS ---
-// Trong lúc onboarding (chưa nhập tên + chọn starter), khoá mọi thứ ngoài lab
+// Trong giai đoạn 0 (chưa nhận starter từ Oak), khoá mọi thứ ngoài lab
 function gateOnboarding() {
-  if (onboardingActive.value) {
+  if (onboardingStage.value === STORY_STAGES.HOME) {
     showToast('🧑‍🔬 Hãy nói chuyện với Giáo sư Oak ở phòng lab trước đã nhé!', 'warning')
     return true
   }
@@ -138,7 +166,7 @@ function gateOnboarding() {
 // Đồng bộ trạng thái khoá di chuyển của scene với hội thoại/bảng thông tin đang mở
 function syncSceneLock() {
   const scene = game?.scene?.getScene('WorldScene')
-  scene?.setLocked?.(oakDialogueOpen.value || homeTalkOpen.value || infoPanelOpen.value)
+  scene?.setLocked?.(oakDialogueOpen.value || homeTalkOpen.value || hospitalStoryOpen.value || hospitalOpen.value || infoPanelOpen.value)
 }
 
 function openOakDialogue() {
@@ -150,7 +178,30 @@ function openOakDialogue() {
 function onOakComplete() {
   oakDialogueOpen.value = false
   syncSceneLock()
-  showToast('🎉 Chúc mừng! Bạn đã nhận Pokémon khởi đầu và bắt đầu hành trình!', 'success')
+  showToast('🎉 Chúc mừng! Bạn đã nhận Pokémon khởi đầu. Hãy đến Bệnh viện Pokémon để y tá đăng ký Pokédex!', 'success')
+}
+
+function closeHospitalStory() {
+  hospitalStoryOpen.value = false
+  syncSceneLock()
+}
+
+function closeHospital() {
+  hospitalOpen.value = false
+  syncSceneLock()
+}
+
+function onHospitalStoryTraining() {
+  hospitalStoryOpen.value = false
+  syncSceneLock()
+  emit('open', 'training')
+}
+
+function onHospitalStoryGotoCampaign() {
+  hospitalStoryOpen.value = false
+  syncSceneLock()
+  setOnboardingStage(STORY_STAGES.GO_CAMPAIGN)
+  showToast('🧭 Hãy đi đến cửa Chiến dịch ⚔️ ở thị trấn để bắt đầu hành trình!', 'info')
 }
 
 function openHomeTalk() {
@@ -211,6 +262,7 @@ function resolveSpawn(mapId, spawnRef) {
 
 // Chuyển scene (cửa io / nút Vào Nhà): lưu vị trí hiện tại rồi restart scene
 async function switchMap(mapId, spawnRef) {
+  beginScreenTransition({ label: 'Đang chuyển bản đồ...', minDuration: 300 })
   await getMapTilesets(mapId)
   const spawn = resolveSpawn(mapId, spawnRef)
   store.prevMapPos = {
@@ -236,6 +288,10 @@ function onMapChange(mapId, spawn, transitionData) {
   }
   // Cửa Chiến Dịch (⚔️) — mở tab Chiến Dịch thay vì chuyển map
   if (mapId === 'campaign') {
+    // Giai đoạn 3 (đã xong hướng dẫn): mở chiến dịch = hoàn tất onboarding
+    if (onboardingStage.value === STORY_STAGES.GO_CAMPAIGN) {
+      setOnboardingStage(STORY_STAGES.DONE)
+    }
     emit('open', 'campaign')
     return
   }
@@ -246,15 +302,31 @@ function onMapChange(mapId, spawn, transitionData) {
 // Thêm loại mới: thêm 1 dòng vào đây + 1 layer <type>=2 trong Tiled, không cần sửa scene.
 const INTERACT_HANDLERS = {
   healing: (pt) => {
-    if (currentMapId.value === 'hospital') {
+    if (currentMapId.value !== 'hospital') return
+    const stage = onboardingStage.value
+    // Giai đoạn 1-2 (cốt truyện): mở hội thoại Y tá hướng dẫn, còn lại mở modal hồi phục thường
+    if (stage === STORY_STAGES.LAB_DONE || stage === STORY_STAGES.HOSPITAL) {
+      hospitalStoryOpen.value = true
+    } else {
       hospitalOpen.value = true
-      syncSceneLock()
     }
+    syncSceneLock()
+  },
+  // NPC mở cửa hàng / cửa hàng Gacha (store_npc / gacha_npc trong bản đồ tương ứng)
+  npc: (pt) => {
+    const npcModes = { store_npc: 'shop', gacha_npc: 'gacha' }
+    const mode = npcModes[pt.npcId]
+    if (!mode) {
+      showToast(`${INTERACT_LABELS[pt.type] || 'NPC'} tại ô (${pt.col}, ${pt.row})`)
+      return
+    }
+    if (gateOnboarding()) return
+    emit('open', mode)
   },
   // dialogue: (pt) => openNpcDialogue(pt.value),
   // quest: (pt) => openQuest(pt.value),
 }
-const INTERACT_LABELS = { interac: 'Điểm tương tác', quest: 'Nhiệm vụ', io: 'Cửa', healing: 'Y tá', dialogue: 'Hội thoại' }
+const INTERACT_LABELS = { interac: 'Điểm tương tác', quest: 'Nhiệm vụ', io: 'Cửa', healing: 'Y tá', npc: 'NPC', dialogue: 'Hội thoại' }
 
 function onTileInteract(pt) {
   // Điểm nói chuyện với Giáo sư Oak trong lab
@@ -288,46 +360,58 @@ function destroyGame() {
 async function startGame() {
   const container = containerRef.value
   if (!container) return
+  beginScreenTransition({ label: 'Đang vào bản đồ...', minDuration: 300 })
   viewportW.value = container.clientWidth || 960
   viewportH.value = container.clientHeight || 560
 
   // Resolve tileset từ JSON trước khi boot Phaser (worldScene preload đọc mapInfo.tilesets)
   await getMapTilesets(currentMapId.value)
 
+  const map = getMap(currentMapId.value)
+
   setWorldRuntime({
-    callbacks: {
-      onOpen,
-      onShowPopover: (loc) => { selectedLocation.value = loc },
-      onPlayerPos: (x, y) => {
-        playerX.value = x
-        playerY.value = y
-        store.worldPos.x = Math.round(x)
-        store.worldPos.y = Math.round(y)
-        cameraX.value = x - viewportW.value / 2
-        cameraY.value = y - viewportH.value / 2
+      callbacks: {
+        onOpen,
+        onShowPopover: (loc) => { selectedLocation.value = loc },
+        onPlayerPos: (x, y) => {
+          playerX.value = x
+          playerY.value = y
+          store.worldPos.x = Math.round(x)
+          store.worldPos.y = Math.round(y)
+          cameraX.value = x - viewportW.value / 2
+          cameraY.value = y - viewportH.value / 2
+        },
+        onInRange: (id) => {
+          inRangeLocId.value = id
+          if (selectedLocation.value && id !== selectedLocation.value.id) {
+            selectedLocation.value = null
+          }
+        },
+        onMapInfo: (mapId) => {
+          currentMapId.value = mapId
+          // Tự mở hội thoại theo stage cốt truyện: nhà (stage 0) → lab (stage 0)
+          if (onboardingStage.value === STORY_STAGES.HOME && mapId === 'house' && !homeTalkShown.value) {
+            openHomeTalk()
+          } else if (onboardingStage.value === STORY_STAGES.HOME && mapId === 'lab' && !oakDialogueOpen.value) {
+            openOakDialogue()
+          } else {
+            syncSceneLock()
+          }
+          // Scene đã dựng xong (create() hoàn tất) → ẩn màn hình chuyển cảnh
+          setScreenProgress(100)
+          endScreenTransition()
+        },
+        onLoadProgress: (v) => setScreenProgress(v * 100),
+        onMapChange,
+        onTileInteract,
+        onWildEncounter: (pokemon) => {
+          // Mở BattleArena với mode wild + dữ liệu wild Pokémon
+          emit('open', 'wild', pokemon)
+        },
       },
-      onInRange: (id) => {
-        inRangeLocId.value = id
-        if (selectedLocation.value && id !== selectedLocation.value.id) {
-          selectedLocation.value = null
-        }
-      },
-      onMapInfo: (mapId) => {
-        currentMapId.value = mapId
-        // Lần đầu vào game: tự thoại trong nhà → sau đó mới tới hội thoại Oak ở lab
-        if (onboardingActive.value && mapId === 'house' && !homeTalkShown.value) {
-          openHomeTalk()
-        } else if (onboardingActive.value && mapId === 'lab' && !oakDialogueOpen.value) {
-          openOakDialogue()
-        } else {
-          syncSceneLock()
-        }
-      },
-      onMapChange,
-      onTileInteract,
-    },
     startPos: { x: playerX.value, y: playerY.value },
     onboardingTarget: onboardingTarget.value,
+    encounters: map.encounters || { enabled: false },
   })
 
   game = new Phaser.Game({
@@ -386,6 +470,7 @@ watch(
   () => store.worldPos.mapId,
   async (newMapId) => {
     if (!newMapId || newMapId === currentMapId.value) return
+    beginScreenTransition({ label: 'Đang chuyển bản đồ...', minDuration: 300 })
     const map = getMap(newMapId)
     await getMapTilesets(newMapId)
     currentMapId.value = newMapId
@@ -393,7 +478,10 @@ watch(
     playerY.value = store.worldPos.y ?? map.spawn.y
     selectedLocation.value = null
     inRangeLocId.value = null
-    setWorldRuntime({ onboardingTarget: getOnboardingTarget(newMapId) })
+    setWorldRuntime({
+      onboardingTarget: getOnboardingTarget(newMapId),
+      encounters: map.encounters || { enabled: false },
+    })
     game?.scene.getScene('WorldScene').scene.restart({
       mapId: newMapId,
       startPos: { x: playerX.value, y: playerY.value },
@@ -414,6 +502,12 @@ watch(
     }
   },
 )
+
+// Đổi stage cốt truyện (vd sau Oak / sau huấn luyện) → cập nhật marker chỉ dẫn ngay
+watch(onboardingStage, () => {
+  setWorldRuntime({ onboardingTarget: getOnboardingTarget(currentMapId.value) })
+  game?.scene.getScene('WorldScene')?.refreshOnboardingMarker?.()
+})
 </script>
 
 <template>
@@ -567,6 +661,15 @@ watch(
       <kbd class="rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5">Tab</kbd>
       để xem thông tin
     </div>
+
+    <!-- NÚT CÀI ĐẶT -->
+    <button
+      @click="openSettings()"
+      title="Cài đặt"
+      class="absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white/90 text-lg text-slate-600 shadow-md backdrop-blur-sm transition hover:bg-white"
+    >
+      ⚙️
+    </button>
   </div>
 
   <!-- HỘI THOẠI ONBOARDING GIÁO SƯ OAK -->
@@ -575,8 +678,16 @@ watch(
   <!-- TỰ THOẠI LẦN ĐẦU TRONG NHÀ -->
   <HomeStartDialogue :open="homeTalkOpen" @complete="onHomeTalkComplete" />
 
-  <!-- HỘI THOẠI Y TÁ BỆNH VIỆN -->
-  <HospitalModal :open="hospitalOpen" @close="hospitalOpen = false" @openRoster="emit('open', 'roster')" />
+  <!-- HỘI THOẠI Y TÁ BỆNH VIỆN (hồi phục) -->
+  <HospitalModal :open="hospitalOpen" @close="closeHospital" @openRoster="emit('open', 'roster')" />
+
+  <!-- HỘI THOẠI CỐT TRUYỆN Y TÁ (Pokédex + hướng dẫn combat + trận huấn luyện) -->
+  <HospitalStoryDialogue
+    :open="hospitalStoryOpen"
+    @close="closeHospitalStory"
+    @training="onHospitalStoryTraining"
+    @gotoCampaign="onHospitalStoryGotoCampaign"
+  />
 
   <!-- MODE SELECT POPOVER (địa điểm nhiều chức năng) -->
   <Teleport to="body">

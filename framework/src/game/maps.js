@@ -30,6 +30,18 @@ export const HOSPITAL_SPAWN = { x: 128, y: 120 }
 // Vị trí xuất hiện khi ra khỏi bệnh viện — trước cửa bệnh viện town (ô 16,28/17,28)
 export const TOWN_HOSPITAL_DOOR_SPAWN = { x: 264, y: 456 }
 
+// Vị trí xuất hiện khi vào cửa hàng (ô 5,12 — giữa quầy, cách cửa ra 2 ô)
+export const STORE_SPAWN = { x: 96, y: 200 }
+
+// Vị trí xuất hiện khi ra khỏi cửa hàng — trước cửa hàng town (ô 46,47/47,47)
+export const TOWN_STORE_DOOR_SPAWN = { x: 752, y: 776 }
+
+// Vị trí xuất hiện khi vào cửa hàng Gacha (ô 15,22 — ngay phía trên cửa ở hàng 23-25)
+export const GACHA_STORE_SPAWN = { x: 248, y: 360 }
+
+// Vị trí xuất hiện khi ra khỏi cửa hàng Gacha — trước cửa Gacha town (ô 54,46)
+export const TOWN_GACHA_DOOR_SPAWN = { x: 872, y: 744 }
+
 export const MAPS = {
   [TOWN_ID]: {
     id: TOWN_ID,
@@ -55,6 +67,26 @@ export const MAPS = {
       '26,46': { to: 'gym', gymType: 'Fire' },
       '27,46': { to: 'gym', gymType: 'Fire' },
       '28,46': { to: 'gym', gymType: 'Fire' },
+      // Cửa hàng (ô io 46,46/47,46/46,47/47,47) → vào cửa hàng
+      '46,46': { to: 'store', toSpawn: STORE_SPAWN },
+      '47,46': { to: 'store', toSpawn: STORE_SPAWN },
+      '46,47': { to: 'store', toSpawn: STORE_SPAWN },
+      '47,47': { to: 'store', toSpawn: STORE_SPAWN },
+      // Cửa hàng Gacha (ô io 54,46 — gacha_door trong objectgroup doors của home_town.json) → vào cửa hàng Gacha
+      '54,46': { to: 'gacha_store', toSpawn: 'gacha_store_door' },
+    },
+    // Cấu hình Pokémon hoang dã (Wild Encounter)
+    encounters: {
+      enabled: true,
+      intervalMs: 9000,
+      chance: 0.25,
+      maxActive: 1,
+      cooldownMs: 12000,
+      pool: [
+        { species: 'Pidgey', minLevel: 1, maxLevel: 5, weight: 40 },
+        { species: 'Rattata', minLevel: 1, maxLevel: 5, weight: 35 },
+        { species: 'Caterpie', minLevel: 1, maxLevel: 5, weight: 25 },
+      ],
     },
     // Điểm định vị trên minimap (tọa độ tâm, px thế giới — tile 16px).
     // type: 'location' = địa điểm thường (chấm vàng) | 'quest' = mục tiêu nhiệm vụ (chấm đỏ nhấp nháy)
@@ -63,7 +95,9 @@ export const MAPS = {
       { id: 'lab_door', name: 'Phòng Lab', type: 'location', x: 728, y: 456, icon: '🧪' },
       { id: 'market_door', name: 'Chợ', type: 'location', x: 264, y: 456, icon: '🏪' },
       { id: 'hospital_door', name: 'Bệnh viện', type: 'location', x: 264, y: 456, icon: '🏥' },
+      { id: 'store_door', name: 'Cửa hàng', type: 'location', x: 752, y: 752, icon: '🛒' },
       { id: 'fire_gym', name: 'Phòng Gym Lửa', type: 'location', x: 424, y: 736, icon: '🔥' },
+      { id: 'gacha_door', name: 'Cửa hàng Gacha', type: 'location', x: 872, y: 744, icon: '🎁' },
     ],
   },
   house: {
@@ -127,6 +161,64 @@ export const MAPS = {
       { id: 'door_out', name: 'Cửa ra', type: 'location', x: 128, y: 240, icon: '🚪' },
     ],
   },
+  store: {
+    id: 'store',
+    name: 'Cửa hàng',
+    kind: 'tiled',
+    src: '/images/map/store/store.json',
+    tileSize: 16,
+    zoom: 2,
+    playerScale: 1,
+    width: 304,
+    height: 256,
+    spawn: STORE_SPAWN,
+    transitions: {
+      // Cửa ra cửa hàng (ô io 4,14→7,15 — store_door trong objectgroup doors của store.json) → ra thị trấn trước cửa hàng
+      '4,14': { to: TOWN_ID, toSpawn: TOWN_STORE_DOOR_SPAWN },
+      '5,14': { to: TOWN_ID, toSpawn: TOWN_STORE_DOOR_SPAWN },
+      '6,14': { to: TOWN_ID, toSpawn: TOWN_STORE_DOOR_SPAWN },
+      '7,14': { to: TOWN_ID, toSpawn: TOWN_STORE_DOOR_SPAWN },
+      '4,15': { to: TOWN_ID, toSpawn: TOWN_STORE_DOOR_SPAWN },
+      '5,15': { to: TOWN_ID, toSpawn: TOWN_STORE_DOOR_SPAWN },
+      '6,15': { to: TOWN_ID, toSpawn: TOWN_STORE_DOOR_SPAWN },
+      '7,15': { to: TOWN_ID, toSpawn: TOWN_STORE_DOOR_SPAWN },
+    },
+    spots: [
+      { id: 'counter', name: 'Quầy thu ngân', type: 'location', x: 96, y: 88, icon: '🛒' },
+      { id: 'door_out', name: 'Cửa ra thị trấn', type: 'location', x: 96, y: 232, icon: '🚪' },
+    ],
+  },
+  gacha_store: {
+    id: 'gacha_store',
+    name: 'Cửa hàng Gacha',
+    kind: 'tiled',
+    src: '/images/map/gacha_store/gacha_store.json',
+    tileSize: 16,
+    zoom: 1.5,
+    playerScale: 1,
+    width: 480,
+    height: 416,
+    spawn: GACHA_STORE_SPAWN,
+    transitions: {
+      // Cửa ra cửa hàng Gacha (ô io 13,23→16,25 — gacha_store_door trong objectgroup doors của gacha_store.json) → ra thị trấn trước cửa Gacha
+      '13,23': { to: TOWN_ID, toSpawn: TOWN_GACHA_DOOR_SPAWN },
+      '14,23': { to: TOWN_ID, toSpawn: TOWN_GACHA_DOOR_SPAWN },
+      '15,23': { to: TOWN_ID, toSpawn: TOWN_GACHA_DOOR_SPAWN },
+      '16,23': { to: TOWN_ID, toSpawn: TOWN_GACHA_DOOR_SPAWN },
+      '13,24': { to: TOWN_ID, toSpawn: TOWN_GACHA_DOOR_SPAWN },
+      '14,24': { to: TOWN_ID, toSpawn: TOWN_GACHA_DOOR_SPAWN },
+      '15,24': { to: TOWN_ID, toSpawn: TOWN_GACHA_DOOR_SPAWN },
+      '16,24': { to: TOWN_ID, toSpawn: TOWN_GACHA_DOOR_SPAWN },
+      '13,25': { to: TOWN_ID, toSpawn: TOWN_GACHA_DOOR_SPAWN },
+      '14,25': { to: TOWN_ID, toSpawn: TOWN_GACHA_DOOR_SPAWN },
+      '15,25': { to: TOWN_ID, toSpawn: TOWN_GACHA_DOOR_SPAWN },
+      '16,25': { to: TOWN_ID, toSpawn: TOWN_GACHA_DOOR_SPAWN },
+    },
+    spots: [
+      { id: 'gacha_npc', name: 'Máy Gacha', type: 'location', x: 248, y: 104, icon: '🎁' },
+      { id: 'door_out', name: 'Cửa ra thị trấn', type: 'location', x: 240, y: 392, icon: '🚪' },
+    ],
+  },
 }
 
 export function getMap(mapId) {
@@ -175,6 +267,7 @@ export function parseSpawns(json) {
 
 // Objectgroup `doors` → map `"col,row"` → transition {to, toSpawn, ...}.
 // Cửa rect rộng nhiều ô sẽ tự nở ra mọi tile bị phủ.
+// Object không có property `to` (marker NPC/trang trí) → KHÔNG phải cửa, bị bỏ qua.
 export function parseDoors(json) {
   const doors = {}
   const layer = (json.layers || []).find((l) => l.type === 'objectgroup' && l.name === 'doors')
@@ -182,6 +275,7 @@ export function parseDoors(json) {
   const ts = json.tilewidth || 16
   for (const obj of layer.objects || []) {
     const props = Object.fromEntries((obj.properties || []).map((p) => [p.name, p.value]))
+    if (!props.to) continue
     const w = obj.width || ts
     const h = obj.height || ts
     const c0 = Math.floor(obj.x / ts)

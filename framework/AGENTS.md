@@ -22,6 +22,7 @@ Pokémon-style gacha / merge / battle browser game with all UI text in Vietnames
 - campaign DoT = `%` of current HP, gym DoT = flat `val`; campaign enemies built with `baseHp + level*25` / `baseAtk + level*5` / `baseDef + level*3` / `baseSpeed + level*2`, gym enemies use exponential `Math.pow(1+rate, level-1)` growth.
 - gym requires HLV level ≥ 25 to unlock, team must be same type and level ≤ trainer level, and completed gyms (progress ≥ 5) can't be rechallenged; gym buff +10% (`gymBuffs[type] = 0.1`) at 5 cleared, then `recalculatePokemonStats` for all that type.
 - Status effects: `stun` (Choáng) makes the affected Pokémon lose 1 turn; `extra_turn` (Tăng Tốc +1 lượt) grants an extra attack on entry.
+- DoT (`burn`/`shock`/`poison`/`bleed`) ticks at the **END of the afflicted Pokémon's own turn** (chuẩn Pokémon) — implemented via `processEndOfTurnDot`/`gymProcessEndOfTurnDot`/`towerProcessEndOfTurnDot` called after the acting side's `useSkill`/`executeBotTurn` (and on stunned-skip turns); start-of-turn processing only handles passives, stun, and buff/debuff duration ticks.
 
 ## Conventions
 - Never use legacy DOM helpers (`document.getElementById`, `innerHTML`, etc.) in the Vue app — use reactivity.

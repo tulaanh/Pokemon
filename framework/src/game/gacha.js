@@ -119,7 +119,7 @@ function rollPokemonLevel() {
   return Math.floor(Math.random() * (maxLvl - minLvl + 1)) + minLvl
 }
 
-function buildNewPokemon(species, rarity, pokeLevel) {
+export function buildNewPokemon(species, rarity, pokeLevel) {
   let newPoke = {
     id: Date.now() + Math.random(),
     name: species.name,

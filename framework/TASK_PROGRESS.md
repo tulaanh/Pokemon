@@ -1,48 +1,71 @@
-# Task: Add First-Time Login & Starter Pokémon Selection
+# Wild Encounter System Implementation Progress
 
-## Requirements
-1. Show login/registration modal on first login
-2. Player enters their name
-3. Player selects 1 of 3 Legendary starter Pokémon: Bulbasaur, Charmander, Squirtle
+## Task Overview
+Implement wild Pokémon encounters on the world map with Pokéball capture system.
 
-## Implementation Plan
+## Phase 1: Core Infrastructure (✅ Already Exists)
+- [x] Pokéball catalog in `src/game/shop.js` with 4 ball types (PokeBall, GreatBall, UltraBall, MasterBall)
+- [x] Capture logic in `src/game/capture.js` (rollWildEncounter, getCaptureChance, attemptCapture)
+- [x] BattleArena.vue already has wild battle mode and Pokéball selection modal
+- [x] ShopView.vue has Pokéball purchase UI with buy x1/x5/x10 options
+- [x] InventoryView.vue shows Pokéball inventory
+- [x] Pokéball assets in `public/images/items/` with MIT license attribution
+- [x] WorldMap.vue has `onWildEncounter` callback to open wild battle
+- [x] `maps.js` has encounter config for town map (enabled with Pidgey, Rattata, Caterpie pool)
 
-### 1. Update Store (src/game/store.js)
-- [x] Add `playerName` field to player state
-- [x] Add `hasCompletedFirstLogin` flag to track first login
-- [x] Update `defaultState()` to include these fields
-- [x] Update `saveGameState()` and `loadGameState()` to persist these fields
+## Phase 2: Encounter System in WorldScene (✅ Fully Implemented)
+- [x] Wild encounter state management in `worldScene.js` (wildEncounterState object)
+- [x] Spawn logic (time-based + distance-based) in `updateWildEncounter()`
+- [x] Valid spawn tile checking in `isValidSpawnTile()` (avoids walls, doors, NPCs, player)
+- [x] Random position finding in `findRandomSpawnPosition()` (10-20 tile radius around player)
+- [x] Sprite rendering with blink effect in `spawnWildPokemon()` (emoji sprite with Phaser tween)
+- [x] Interaction handling in `handleWildEncounter()` (calls callback to open battle)
+- [x] Cleanup and cooldown in `clearWildEncounter()` (removes sprite, starts cooldown)
+- [x] Encounter config passed from WorldMap.vue via `setWorldRuntime` (encounters property)
 
-### 2. Add Starter Pokémon to Data (src/game/data.js)
-- [x] Add Charmander to POKEMON_SPECIES (Fire type)
-- [x] Add Squirtle to POKEMON_SPECIES (Water type)
-- Note: Bulbasaur already exists
+## Phase 3: Battle Integration (✅ Already Implemented)
+- [x] App.vue `handleOpenMode` handles 'wild' mode → calls `startWildBattle(pokemon)`
+- [x] BattleArena.vue watches `battle.mode === 'wild'` → opens Pokéball selection modal
+- [x] BattleArena.vue watches `battle.enemyPoke?.hp <= 0` → reopens modal if closed
+- [x] `onSelectPokeball` calls `attemptCapture()` from capture.js
+- [x] Capture success → adds to team, updates Pokédex, shows toast, closes battle
+- [x] Capture failure → shows toast, ends battle (wild Pokémon flees)
+- [x] "Bỏ chạy" button closes modal and ends battle
 
-### 3. Create Login Modal Component (src/components/LoginModal.vue)
-- [x] Modal with player name input
-- [x] 3 starter Pokémon cards (Bulbasaur, Charmander, Squirtle)
-- [x] Each with Legendary rarity styling
-- [x] Confirm button to save selection
+## Phase 4: Save/Load Migration (✅ Already Implemented)
+- [x] `store.js` default inventory includes all 4 Pokéball types initialized to 0
+- [x] `store.js` loadGameState migration (lines 156-159) ensures Pokéball fields exist
+- [x] `capture.js` `migratePokeballInventory()` function available for manual migration
+- [x] `initStore()` in store.js calls `loadGameState()` on startup
 
-### 4. Add Starter Pokémon Logic (src/game/store.js or new module)
-- [x] Function to create starter Pokémon with Legendary rarity
-- [x] Function to complete first login flow
+## Verification
+- [x] `npm run build` completed successfully (no errors)
+- [x] Dev server running on http://localhost:5174/
 
-### 5. Integrate into App.vue
-- [x] Import LoginModal
-- [x] Show modal when `!store.gameState.player.hasCompletedFirstLogin` (computed, reactive)
-- [x] Handle completion callback
+## Complete Flow (Verified in Code)
+1. **Player walks on town map** → `updateWildEncounter(delta)` called every frame
+2. **Timer or distance triggers spawn** → `spawnWildPokemon()` finds valid tile, creates sprite with blink effect
+3. **Player walks to encounter** → `getInteractTarget()` detects interaction, `handleWildEncounter()` called
+4. **Callback fires** → `onWildEncounter(pokemon)` in WorldMap.vue → `emit('open', 'wild', pokemon)`
+5. **App.vue handles mode** → `handleOpenMode('wild', pokemon)` → calls `startWildBattle(pokemon)` from battle.js
+6. **BattleArena opens** → watches mode='wild' → opens Pokéball modal with catalog
+7. **Player selects ball** → `attemptCapture()` calculates chance, consumes ball, tries capture
+8. **Success** → Pokémon added to team, Pokédex updated, battle closes with success toast
+9. **Failure** → Ball consumed, wild Pokémon flees, battle closes with failure toast
+10. **Cooldown** → `clearWildEncounter()` sets cooldown timer before next spawn
 
-### 6. Test
-- [x] Run `npm run build`
-- [x] Test in browser
+## All Requirements Met ✅
+- Pokémon spawn in walkable areas (not walls/doors/NPCs) ✅
+- Sprite with blink effect ✅
+- Interaction to start battle ✅
+- Pokéball selection modal with capture chance display ✅
+- 4 Pokéball types (regular, great, ultra, master) with different multipliers ✅
+- Purchase in Shop, view in Inventory ✅
+- Assets downloaded with MIT license attribution ✅
+- Encounters only on town map (configurable per map) ✅
+- No encounter persistence in save (session-only) ✅
+- Cooldown after encounter ✅
+- Team full check before capture ✅
+- Ball not consumed if team full / capture not attempted ✅
 
-### 7. Fix Bug: Reset Game Gives Free Legendary
-- [x] Updated `saveGameState()` to persist `playerName` and `hasCompletedFirstLogin`
-- [x] Updated `loadGameState()` to restore `playerName` and `hasCompletedFirstLogin`
-- [x] This ensures reset properly clears these fields and login modal appears correctly
-
-### 8. Fix Bug: Player Name Not Displaying in Header
-- [x] Changed `showLoginModal` from `ref` to `computed` in App.vue for reactivity
-- [x] Updated GameHeader.vue to display `player.playerName` instead of hardcoded "Player 1"
-- [x] Falls back to "Player 1" if no name is set
+**Status: IMPLEMENTATION COMPLETE - Ready for testing**

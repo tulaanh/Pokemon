@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { store } from '../../game/store.js'
 import {
   battle,
@@ -14,13 +14,28 @@ import { useGymSkill, performGymInBattleSwitch, GYM_DATA } from '../../game/gym.
 import { useStorySkill, performStoryInBattleSwitch } from '../../game/story.js'
 import { useTowerSkill, performTowerInBattleSwitch, continueTower, quitTower } from '../../game/tower.js'
 import { getEffectLabel } from '../../game/data.js'
+import {
+  getPokeballCatalog,
+} from '../../game/shop.js'
+import {
+  getCaptureChance,
+  attemptCapture,
+} from '../../game/capture.js'
+import { showToast } from '../ui/toast.js'
 import RarityText from '../RarityText.vue'
 import TypeBadge from '../poke/TypeBadge.vue'
 import PokeSprite from '../PokeSprite.vue'
 import SkillSelectModal from '../shop/SkillSelectModal.vue'
 import BattleProjectile from './BattleProjectile.vue'
 
-const emit = defineEmits(['close-result'])
+const emit = defineEmits(['close-result', 'close-battle'])
+
+// Wild Pokémon bắt được từ encounter
+const wildPokemon = ref(null)
+// Pokéball selection modal state
+const pokeballModalOpen = ref(false)
+const pokeballCatalog = ref([])
+const lastCaptureResult = ref(null)
 
 const playerPoke = computed(() => getActivePlayerPoke())
 const switchOpen = ref(false)
@@ -154,7 +169,7 @@ function onUseSkill(i) {
   if (battle.mode === 'gym') useGymSkill(i)
   else if (battle.mode === 'story') useStorySkill(i)
   else if (battle.mode === 'tower') useTowerSkill(i)
-  else useSkill(i)
+  else useSkill(i) // campaign, wild
 }
 
 function openSwitch() {
@@ -166,13 +181,24 @@ function onSwitch(idx) {
   if (battle.mode === 'gym') performGymInBattleSwitch(idx)
   else if (battle.mode === 'story') performStoryInBattleSwitch(idx)
   else if (battle.mode === 'tower') performTowerInBattleSwitch(idx)
-  else performInBattleSwitch(idx)
+  else performInBattleSwitch(idx) // campaign, wild
 }
 
 // --- KẾT QUẢ MODAL ---
 const resultBody = computed(() => {
   let gym = battle.gymType ? GYM_DATA[battle.gymType] : null
   if (battle.resultWin) {
+    if (battle.mode === 'training') {
+      return {
+        title: '🎓 HOÀN THÀNH HUẤN LUYỆN!',
+        items: [
+          'Bạn đã nắm được cơ chế chiến đấu cơ bản!',
+          `⭐ Kinh Nghiệm: +${battle.rewards.exp} EXP`,
+          `🪙 Vàng: +${battle.rewards.gold || 0} Vàng`,
+        ],
+        pokedexHint: false,
+      }
+    }
     if (battle.mode === 'gym') {
       let progress = store.gymProgress[battle.gymType] || 0
       let buffMsg =
@@ -216,6 +242,16 @@ const resultBody = computed(() => {
   }
 
   // THẤT BẠI
+  if (battle.mode === 'training') {
+    return {
+      title: '💀 THẤT BẠI!',
+      items: [
+        'Đừng nản chí — hãy chú ý đến sát thương, khiên và hiệu ứng!',
+        '💡 Bấm Quay Lại rồi thử lại trận huấn luyện.',
+      ],
+      pokedexHint: false,
+    }
+  }
   if (battle.mode === 'gym') {
     return {
       title: '💀 THẤT BẠI!',
@@ -275,6 +311,60 @@ function onTowerQuit() {
 const isTowerWin = computed(() => battle.resultOpen && battle.resultWin && battle.mode === 'tower')
 
 const isGymPlayer = computed(() => battle.mode === 'gym')
+
+// Theo dõi mode wild để mở modal chọn Pokéball
+watch(() => battle.mode, (newMode) => {
+  if (newMode === 'wild') {
+    pokeballCatalog.value = getPokeballCatalog()
+    pokeballModalOpen.value = true
+  }
+})
+
+// Khi wild Pokémon bị hạ gục (hp <= 0) -> mở modal chọn Pokéball
+watch(() => battle.enemyPoke?.hp, (newHp) => {
+  if (battle.mode === 'wild' && battle.enemyPoke && newHp <= 0 && !pokeballModalOpen.value) {
+    pokeballCatalog.value = getPokeballCatalog()
+    pokeballModalOpen.value = true
+  }
+})
+
+// Hàm chọn Pokéball
+function onSelectPokeball(ballId) {
+  const result = attemptCapture(battle.enemyPoke, ballId)
+  lastCaptureResult.value = result
+  pokeballModalOpen.value = false
+  
+  if (result.ok) {
+    if (result.success) {
+      // Bắt thành công
+      showToast(result.message, 'success')
+      // Đóng battle sau khi bắt thành công
+      setTimeout(() => {
+        battle.resultOpen = false
+        emit('close-result')
+      }, 2000)
+    } else {
+      // Bắt thất bại - Pokémon thoát
+      showToast(result.message, 'warning')
+      // Kết thúc battle (Pokémon hoang dã bỏ chạy)
+      setTimeout(() => {
+        battle.resultOpen = false
+        emit('close-result')
+      }, 1500)
+    }
+  } else {
+    showToast(result.message, 'error')
+  }
+}
+
+function closePokeballModal() {
+  pokeballModalOpen.value = false
+  // Nếu không chọn bóng thì coi như bỏ chạy
+  if (battle.mode === 'wild' && !lastCaptureResult.value) {
+    battle.resultOpen = false
+    emit('close-result')
+  }
+}
 </script>
 
 <template>
@@ -567,7 +657,7 @@ const isGymPlayer = computed(() => battle.mode === 'gym')
                 @click="onTowerQuit"
                 class="flex-1 rounded-xl border border-amber-400 bg-amber-50 py-2.5 text-sm font-black text-amber-700 transition hover:bg-amber-100"
               >
-                🪙 Rút Lui &amp; Nhận Thưởng
+                🪙 Rút Lui & Nhận Thưởng
               </button>
               <button
                 @click="onTowerNext"
@@ -584,6 +674,48 @@ const isGymPlayer = computed(() => battle.mode === 'gym')
             class="app-btn-primary mt-5 w-full py-2.5"
           >
             Quay Lại Bản Đồ
+          </button>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- POKEBALL SELECTION MODAL (WILD ENCOUNTER) -->
+    <Teleport to="body">
+      <div v-if="pokeballModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm" @click.self="closePokeballModal">
+        <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+          <h3 class="text-lg font-black text-slate-800 mb-4">🔴 Chọn Pokéball</h3>
+          <p v-if="battle.enemyPoke" class="text-sm text-slate-600 mb-4">
+            {{ battle.enemyPoke.name }} Lv.{{ battle.enemyPoke.level }} (HP: {{ Math.max(0, battle.enemyPoke.hp) }}/{{ battle.enemyPoke.maxHp }})
+          </p>
+          <div class="grid grid-cols-2 gap-3 mb-4">
+            <button
+              v-for="ball in pokeballCatalog"
+              :key="ball.id"
+              @click="onSelectPokeball(ball.id)"
+              :disabled="ball.count <= 0"
+              class="relative rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-amber-400 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <div class="flex items-center gap-3">
+                <span class="text-3xl">{{ ball.emoji }}</span>
+                <div class="flex-1">
+                  <div class="font-bold text-slate-800">{{ ball.name }}</div>
+                  <div class="text-xs text-slate-500">{{ ball.description }}</div>
+                </div>
+              </div>
+              <div class="mt-2 text-right text-xs text-slate-500">
+                <span v-if="ball.count > 0" class="font-bold text-emerald-600">✕{{ ball.count }}</span>
+                <span v-else class="text-red-500">Hết</span>
+              </div>
+              <div v-if="ball.count > 0 && battle.enemyPoke" class="absolute bottom-3 right-3 text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
+                Tỷ lệ: {{ Math.round(getCaptureChance(battle.enemyPoke, ball.id) * 100) }}%
+              </div>
+            </button>
+          </div>
+          <button
+            @click="closePokeballModal"
+            class="w-full rounded-lg border border-slate-300 bg-slate-100 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-200"
+          >
+            Bỏ chạy
           </button>
         </div>
       </div>
@@ -769,7 +901,7 @@ const isGymPlayer = computed(() => battle.mode === 'gym')
   }
   80% {
     transform: scale(1);
-    opacity: 1;
+    opacity: 1.
   }
   100% {
     transform: scale(1);

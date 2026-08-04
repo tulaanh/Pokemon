@@ -1,7 +1,7 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { store } from '../game/store.js'
-import { useCandyOnPokemon, useStoneOnPokemon } from '../game/shop.js'
+import { useCandyOnPokemon, useStoneOnPokemon, getPokeballCatalog } from '../game/shop.js'
 import { POKEMON_SPECIES } from '../game/data.js'
 import { showToast } from '../components/ui/toast.js'
 import PokeSprite from '../components/PokeSprite.vue'
@@ -12,6 +12,9 @@ import SkillSelectModal from '../components/shop/SkillSelectModal.vue'
 const useOpen = ref(false)
 const stoneOpen = ref(false)
 const feedback = ref('')
+
+// Pokéball catalog (để hiển thị số lượng trong kho)
+const pokeballCatalog = computed(() => getPokeballCatalog())
 
 // Sự kiện tiến hóa (khi dùng Kẹo chạm mốc level / dùng đá)
 const evolutionEvent = ref(null)
@@ -109,6 +112,32 @@ function onSkillLearned(message) {
         >
           💎 Sử Dụng Đá Tiến Hóa
         </button>
+      </div>
+
+      <!-- POKÉBALL TRONG KHO -->
+      <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-5">
+        <h4 class="text-lg font-bold text-red-600">🔴 Pokéball</h4>
+        <p class="my-2 text-xs text-slate-500">Số lượng các loại Pokéball trong kho. Dùng để bắt Pokémon hoang dã.</p>
+
+        <div class="mt-3 space-y-2">
+          <div
+            v-for="ball in pokeballCatalog"
+            :key="ball.id"
+            class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3"
+          >
+            <div class="min-w-0">
+              <div class="text-sm font-bold text-slate-800">{{ ball.emoji }} {{ ball.name }}</div>
+              <div class="text-[11px] text-slate-500">{{ ball.description }}</div>
+              <div class="mt-0.5 text-xs text-slate-600">
+                Số lượng: <b class="text-red-600">{{ ball.count }}</b>
+              </div>
+            </div>
+            <div class="shrink-0 text-right">
+              <div class="text-xs text-slate-500">Giá mua: {{ ball.price.toLocaleString() }} 💰</div>
+              <div class="text-[10px] text-slate-400">Tỷ lệ bắt: {{ ball.multiplier === Infinity ? '100%' : (ball.multiplier * 100).toFixed(0) + '%' }}</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div v-if="evolutionEvent" class="mt-3 rounded-2xl border border-amber-400/70 bg-gradient-to-r from-amber-50 to-orange-50 p-5 text-center shadow-lg">

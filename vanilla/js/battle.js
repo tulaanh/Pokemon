@@ -14,7 +14,6 @@ function startBattle() {
             p.hp = p.maxHp;
             p.shield = 0;
             p.mp = p.initMp;
-            p.spdGauge = p.speed;
             p.effects = [];
             p.skills.forEach(s => s.currentCd = 0);
         }
@@ -67,7 +66,6 @@ function loadCampaignWave(waveIdx) {
         atk: Math.round((eSpecies.baseAtk + eLevel * 5) * eRarity.statMult * sMult),
         def: Math.round((eSpecies.baseDef + eLevel * 3) * eRarity.statMult * sMult),
         speed: Math.round((eSpecies.baseSpeed + eLevel * 2) * eRarity.statMult),
-        spdGauge: Math.round((eSpecies.baseSpeed + eLevel * 2) * eRarity.statMult),
         effects: [],
         passive: eSpecies.passive ? JSON.parse(JSON.stringify(eSpecies.passive)) : null,
         skills: [
@@ -85,7 +83,7 @@ function loadCampaignWave(waveIdx) {
 
     log(`⚔️ [Wave ${waveIdx + 1}] Bắt đầu! <b>${team[activePokeIdx].name}</b> VS <b>${enemyPoke.name}</b>`);
     checkStartBattlePassives();
-    determineNextTurn();
+    determineFirstTurn();
 }
 
 function getEffectiveAtk(poke) {
@@ -214,25 +212,45 @@ function getEffectiveSpeed(poke) {
     return Math.max(10, Math.round(poke.speed * Math.max(0.2, speedMult)));
 }
 
-function determineNextTurn() {
+function determineFirstTurn() {
     let p = team[activePokeIdx];
-    if (p.hp <= 0 || enemyPoke.hp <= 0) return;
+    if (!p || p.hp <= 0 || enemyPoke.hp <= 0) return;
 
-    while (p.spdGauge < 100 && enemyPoke.spdGauge < 100) {
-        p.spdGauge += getEffectiveSpeed(p) * 0.05;
-        enemyPoke.spdGauge += getEffectiveSpeed(enemyPoke) * 0.05;
+    let pSpd = getEffectiveSpeed(p);
+    let eSpd = getEffectiveSpeed(enemyPoke);
+
+    if (pSpd > eSpd) {
+        currentTurnOwner = 'player';
+    } else if (eSpd > pSpd) {
+        currentTurnOwner = 'bot';
+    } else {
+        currentTurnOwner = Math.random() < 0.5 ? 'player' : 'bot';
     }
     updateUI();
 
-    if (p.spdGauge >= enemyPoke.spdGauge) {
-        currentTurnOwner = 'player';
-        processStartOfTurnEffects(p);
+    let firstName = currentTurnOwner === 'player' ? `<b>${p.name}</b>` : `<b>${enemyPoke.name} (Bot)</b>`;
+    if (pSpd === eSpd) {
+        log(`🎲 Tốc độ ngang bằng — chọn ngẫu nhiên: ${firstName} đi trước!`);
+    } else {
+        log(`⚡ ${firstName} đi trước nhờ Tốc Độ!`);
+    }
+    updateUI();
+
+    startNextTurn();
+}
+
+// Chuyển lượt theo cơ chế đánh theo lượt bình thường (xen kẽ)
+function startNextTurn() {
+    let p = team[activePokeIdx];
+    if (!p || p.hp <= 0 || enemyPoke.hp <= 0) return;
+
+    if (currentTurnOwner === 'player') {
+        if (processStartOfTurnEffects(p)) return;
         if (p.hp <= 0) return;
         log(`⚡ Lượt của <b>${p.name}</b>!`);
         updateUI();
     } else {
-        currentTurnOwner = 'bot';
-        processStartOfTurnEffects(enemyPoke);
+        if (processStartOfTurnEffects(enemyPoke)) return;
         if (enemyPoke.hp <= 0) return;
         log(`🤖 Lượt của <b>${enemyPoke.name} (Bot)</b>!`);
         updateUI();
@@ -282,12 +300,15 @@ function processStartOfTurnEffects(poke) {
             log(`💀 <b>${poke.name}</b> đã gục ngã vì mất máu đầu lượt!`);
             if (!switchToNextAlivePokemon()) {
                 showBattleResultModal(false);
+                return true;
             }
-        } else {
-            handleEnemyDefeated();
+            determineFirstTurn();
+            return true;
         }
-        updateUI();
+        handleEnemyDefeated();
+        return true;
     }
+    return false;
 }
 
 function applyStatusEffect(target, effectObj) {
@@ -303,7 +324,6 @@ function applyStatusEffect(target, effectObj) {
 }
 
 function handleEnemyDefeated() {
-    let p = team[activePokeIdx];
     let earnedExp = 30 + enemyPoke.level * 10;
     battleRewards.exp += earnedExp;
 
@@ -322,7 +342,10 @@ function handleEnemyDefeated() {
         log(`🍬 <b>RớT ĐỒ!</b> Bạn nhặt được 1 Kẹo Kinh Nghiệm!`);
     }
 
-    gainExp(p, earnedExp);
+    // Cấp EXP cho toàn bộ Pokémon tham gia trận đấu
+    battleTeamIndices.forEach(idx => {
+        if (idx !== null && team[idx]) gainExp(team[idx], earnedExp);
+    });
     if (typeof updateResourceUI === 'function') updateResourceUI();
 
     currentWaveIdx++;
@@ -336,7 +359,9 @@ function handleEnemyDefeated() {
         battleRewards.exp += campData.rewardExp;
 
         document.getElementById('gem-count').innerText = gems.toLocaleString();
-        gainExp(p, campData.rewardExp);
+        battleTeamIndices.forEach(idx => {
+            if (idx !== null && team[idx]) gainExp(team[idx], campData.rewardExp);
+        });
         if (typeof addPlayerExp === 'function') addPlayerExp(campData.rewardExp);
         if (typeof updateResourceUI === 'function') updateResourceUI();
         showBattleResultModal(true);
@@ -356,8 +381,14 @@ function executeBotTurn() {
 
         executeSkillAction(enemyPoke, p, chosenSkill, false);
 
-        enemyPoke.spdGauge -= 100;
         enemyPoke.skills.forEach(s => { if (s.currentCd > 0) s.currentCd--; });
+
+        if (enemyPoke.hp <= 0) {
+            handleEnemyDefeated();
+            isProcessingTurn = false;
+            updateUI();
+            return;
+        }
 
         if (p.hp <= 0) {
             log(`💀 <b>${p.name}</b> đã gục ngã!`);
@@ -368,10 +399,15 @@ function executeBotTurn() {
                 showBattleResultModal(false);
                 return;
             }
+            isProcessingTurn = false;
+            determineFirstTurn();
+            return;
         }
 
+        currentTurnOwner = 'player';
         isProcessingTurn = false;
-        determineNextTurn();
+        updateUI();
+        startNextTurn();
     }, 800);
 }
 
@@ -461,7 +497,6 @@ function useSkill(skillIdx) {
     isProcessingTurn = true;
     executeSkillAction(p, enemyPoke, skill, true);
 
-    p.spdGauge -= 100;
     p.skills.forEach(s => { if (s.currentCd > 0) s.currentCd--; });
 
     if (enemyPoke.hp <= 0) {
@@ -471,13 +506,14 @@ function useSkill(skillIdx) {
         return;
     }
 
+    currentTurnOwner = 'bot';
     isProcessingTurn = false;
-    determineNextTurn();
+    updateUI();
+    startNextTurn();
 }
 
 function openInBattleSwitchModal() {
-    let p = team[activePokeIdx];
-    if (isProcessingTurn || p.spdGauge < 100) {
+    if (isProcessingTurn || currentTurnOwner !== 'player') {
         alert("Chưa đến lượt của bạn, không thể đổi Pokémon!");
         return;
     }
@@ -526,11 +562,10 @@ function performInBattleSwitch(targetIdx) {
     let newPoke = team[activePokeIdx];
 
     log(`🔄 Bạn đã thu hồi <b>${oldPoke.name}</b> và tung <b>${newPoke.name}</b> ra sân!`);
-    oldPoke.spdGauge -= 100;
 
     applyStartBattlePassive(newPoke);
     updateUI();
-    determineNextTurn();
+    determineFirstTurn();
 }
 
 function showBattleResultModal(isWin) {
@@ -637,11 +672,38 @@ function processSkillQueue() {
 function triggerSkillSelect(p, group, title) {
     document.getElementById('modal-title').innerText = title;
 
-    let opt1 = generateSkillInstance(p.type, group, p.rarity, p.level);
-    let opt2 = generateSkillInstance(p.type, group, p.rarity, p.level);
-    let choices = [opt1, opt2];
+    let choices = [];
+    let isFull = p.skills.length >= 4;
+
+    if (isFull) {
+        // Sau khi học đủ 4 skill: 4 lựa chọn ngẫu nhiên giữa Basic/Skill1/Skill2/Ultimate
+        const RANDOM_GROUPS = ['Basic', 'Skill1', 'Skill2', 'Ultimate'];
+        for (let i = 0; i < 4; i++) {
+            let randomGroup = RANDOM_GROUPS[Math.floor(Math.random() * RANDOM_GROUPS.length)];
+            choices.push(generateSkillInstance(p.type, randomGroup, p.rarity, p.level));
+        }
+    } else {
+        let opt1 = generateSkillInstance(p.type, group, p.rarity, p.level);
+        let opt2 = generateSkillInstance(p.type, group, p.rarity, p.level);
+        choices = [opt1, opt2];
+    }
 
     let choicesHtml = '';
+
+    // Hiển thị kỹ năng hiện tại cùng lúc với các lựa chọn học mới
+    if (isFull && p.skills.length > 0) {
+        choicesHtml += `<p style="text-align:center; color:#a6adc8; margin-bottom:6px; width:100%; font-weight:bold;">📚 KỸ NĂNG HIỆN TẠI</p>`;
+        p.skills.forEach((oldSk, idx) => {
+            let valText = oldSk.power ? `Sát thương: ${oldSk.power}` : oldSk.shield ? `Khiên: +${oldSk.shield}` : oldSk.heal ? `Hồi: +${oldSk.heal}` : `Kỹ năng Buff`;
+            choicesHtml += `
+                <div style="text-align:left; background: rgba(0,0,0,0.25); border-radius:6px; padding:4px 8px; margin-bottom:4px; font-size:12px; color:#a6adc8; width:100%; box-sizing:border-box;">
+                    Ô ${idx + 1}: <span style="color:#f5c518;">[${oldSk.rarity || 'Common'}] ${oldSk.name}</span>
+                    <small>(${valText} | MP: ${oldSk.cost} | CD: ${oldSk.cd}t)</small>
+                </div>`;
+        });
+        choicesHtml += `<p style="text-align:center; color:#a6adc8; margin:8px 0 6px; width:100%;">👇 Chọn 1 kỹ năng mới để học:</p>`;
+    }
+
     choices.forEach((sk, idx) => {
         let valText = sk.power ? `Sát thương: ${sk.power}` : sk.shield ? `Khiên: +${sk.shield}` : sk.heal ? `Hồi máu: +${sk.heal}` : `Kỹ năng Buff`;
         let effText = sk.effect ? ` | Hiệu ứng: ${sk.effect.name}` : '';
@@ -649,15 +711,29 @@ function triggerSkillSelect(p, group, title) {
 
         choicesHtml += `
             <button class="choice-btn" onclick="learnSkillDirectly(${idx})">
-                <b class="${rarityClass}">[${sk.rarity}] ${sk.name}</b> (${group} - Hệ ${p.type})<br>
+                <b class="${rarityClass}">[${sk.rarity}] ${sk.name}</b> (${sk.type} - Hệ ${p.type})<br>
                 <small style="color: #f5c518;">${valText}</small>${effText} | <small>MP: ${sk.cost} | CD: ${sk.cd}t</small>
             </button>
         `;
     });
 
+    if (isFull) {
+        choicesHtml += `<button class="choice-btn" onclick="skipSkillLearn()" style="width:100%; margin-top:6px; background:#475569; color:#e2e8f0;">⏭️ Không học kỹ năng mới</button>`;
+    }
+
     window.pendingChoices = choices;
     document.getElementById('skill-choices').innerHTML = choicesHtml;
     document.getElementById('skill-modal').style.display = 'flex';
+}
+
+function skipSkillLearn() {
+    window.skillQueue.shift();
+    document.getElementById('skill-modal').style.display = 'none';
+    updateUI();
+
+    if (window.skillQueue.length > 0) {
+        setTimeout(() => processSkillQueue(), 500);
+    }
 }
 
 function learnSkillDirectly(choiceIdx) {
@@ -697,6 +773,17 @@ function showReplaceSkillUI(p, newSkill) {
             </button>
         `;
     });
+
+    // Quay lại danh sách lựa chọn kỹ năng mới
+    choicesContainer.innerHTML += `
+        <button class="choice-btn" onclick="backToSkillOptions()" style="width:100%; margin-top:6px; background:#475569; color:#e2e8f0;">← Quay lại</button>
+    `;
+}
+
+function backToSkillOptions() {
+    let currentEvent = window.skillQueue[0];
+    window.pendingNewSkill = null;
+    triggerSkillSelect(currentEvent.poke, currentEvent.group, currentEvent.title);
 }
 
 function confirmReplaceSkill(replaceIdx) {
@@ -734,11 +821,10 @@ function updateUI() {
     let vText = p.vLevel > 0 ? ` <span class="v-badge">V${p.vLevel}</span>` : '';
     
     document.getElementById('player-name').innerHTML = `${p.name}${vText} (Lv.${p.level})`;
-    document.getElementById('player-stats').innerText = `HP:${Math.max(0, p.hp)}/${p.maxHp} | MP:${p.mp}/100\nSPD:${getEffectiveSpeed(p)} (${p.speed}) | Gauge:${Math.round(p.spdGauge)}`;
+    document.getElementById('player-stats').innerText = `HP:${Math.max(0, p.hp)}/${p.maxHp} | MP:${p.mp}/100\nSPD:${getEffectiveSpeed(p)} (${p.speed})`;
     document.getElementById('player-hp').style.width = `${(Math.max(0, p.hp) / p.maxHp) * 100}%`;
     document.getElementById('player-shield').style.width = `${Math.min(100, (p.shield / p.maxHp) * 100)}%`;
     document.getElementById('player-mp').style.width = `${p.mp}%`;
-    document.getElementById('player-spd').style.width = `${Math.min(100, (p.spdGauge / 100) * 100)}%`;
 
     let pBadge = document.getElementById('player-type-badge');
     pBadge.innerText = p.type;
@@ -747,11 +833,10 @@ function updateUI() {
 
     if (enemyPoke) {
         document.getElementById('enemy-name').innerText = `${enemyPoke.name} (Lv.${enemyPoke.level})`;
-        document.getElementById('enemy-stats').innerText = `HP:${Math.max(0, enemyPoke.hp)}/${enemyPoke.maxHp} | MP:${enemyPoke.mp}/100\nSPD:${getEffectiveSpeed(enemyPoke)} (${enemyPoke.speed}) | Gauge:${Math.round(enemyPoke.spdGauge)}`;
+        document.getElementById('enemy-stats').innerText = `HP:${Math.max(0, enemyPoke.hp)}/${enemyPoke.maxHp} | MP:${enemyPoke.mp}/100\nSPD:${getEffectiveSpeed(enemyPoke)} (${enemyPoke.speed})`;
         document.getElementById('enemy-hp').style.width = `${(Math.max(0, enemyPoke.hp) / enemyPoke.maxHp) * 100}%`;
         document.getElementById('enemy-shield').style.width = `${Math.min(100, (enemyPoke.shield / enemyPoke.maxHp) * 100)}%`;
         document.getElementById('enemy-mp').style.width = `${enemyPoke.mp}%`;
-        document.getElementById('enemy-spd').style.width = `${Math.min(100, (enemyPoke.spdGauge / 100) * 100)}%`;
 
         let eBadge = document.getElementById('enemy-type-badge');
         eBadge.innerText = enemyPoke.type;

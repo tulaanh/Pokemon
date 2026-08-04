@@ -21,6 +21,7 @@ import {
   applyStartTurnPassive,
   executeSkillAction,
   gainExp,
+  applyPendingLevelUps,
   switchToNextAlivePokemon,
   tickSkillCooldowns,
   canUseSkill,
@@ -28,6 +29,7 @@ import {
   calculateDotDamage,
   isStunned,
   consumeExtraTurnOnEntry,
+  awaitFxIdle,
 } from './battle.js'
 
 // Nhãn hiển thị đối thủ trong nhật ký (phân biệt với campaign "(Bot)")
@@ -469,7 +471,7 @@ export function checkStartBattlePassives() {
   if (battle.enemyPoke) applyStartBattlePassive(battle.enemyPoke)
 }
 
-// === HIỆU ỨNG ĐẦU LƯỢT (STORY: DOT THEO % ATK NGUỒN GÂY RA - NHƯ CAMPAIGN) ===
+// === HIỆU ỨNG ĐẦU LƯỢT (STORY: PASSIVE + CHOÁNG + GIẢM THỜI LƯỢNG BUFF/DEBUFF) ===
 function processStartOfTurnEffects(poke) {
   let isPlayer = poke === store.team[battle.activePokeIdx]
   let pokeTitle = isPlayer ? `<b>${poke.name}</b>` : `<b>${poke.name} ${ENEMY_TAG}</b>`
@@ -481,6 +483,27 @@ function processStartOfTurnEffects(poke) {
     battleLog(`😵 ${pokeTitle} bị CHOÁNG — mất 1 lượt!`)
     return 'stunned'
   }
+
+  // Buff/debuff (không phải DoT) giảm thời lượng ở đầu lượt
+  const dotEffectTypes = ['burn', 'shock', 'poison', 'bleed']
+  for (let i = poke.effects.length - 1; i >= 0; i--) {
+    let eff = poke.effects[i]
+    if (dotEffectTypes.includes(eff.type)) continue
+    eff.duration--
+    if (eff.duration <= 0) {
+      battleLog(`✨ Hiệu ứng [${eff.name}] trên ${pokeTitle} đã hết hạn.`)
+      poke.effects.splice(i, 1)
+    }
+  }
+
+  return false
+}
+
+// === SÁT THƯƠNG ĐỐT CUỐI LƯỢT (STORY: DOT THEO % ATK NGUỒN GÂY RA - NHƯ CAMPAIGN) ===
+// Pokémon bị dính hiệu ứng đốt chịu sát thương vào CUỐI lượt của chính nó (chuẩn Pokémon).
+function processEndOfTurnDot(poke) {
+  let isPlayer = poke === store.team[battle.activePokeIdx]
+  let pokeTitle = isPlayer ? `<b>${poke.name}</b>` : `<b>${poke.name} ${ENEMY_TAG}</b>`
 
   const dotEffectTypes = ['burn', 'shock', 'poison', 'bleed']
 
@@ -494,18 +517,18 @@ function processStartOfTurnEffects(poke) {
       let sourceInfo = eff.sourceName ? ` (từ ${eff.sourceName})` : ''
       battleLog(`🔥 ${pokeTitle} chịu <b>${dmg}</b> sát thương từ [${eff.name}]${sourceInfo}!`)
       pushFx({ type: 'dot', side: fxSide(poke), dmg, hpPct: getHpPct(poke) })
-    }
 
-    eff.duration--
-    if (eff.duration <= 0) {
-      battleLog(`✨ Hiệu ứng [${eff.name}] trên ${pokeTitle} đã hết hạn.`)
-      poke.effects.splice(i, 1)
+      eff.duration--
+      if (eff.duration <= 0) {
+        battleLog(`✨ Hiệu ứng [${eff.name}] trên ${pokeTitle} đã hết hạn.`)
+        poke.effects.splice(i, 1)
+      }
     }
   }
 
   if (poke.hp <= 0) {
     if (isPlayer) {
-      battleLog(`💀 <b>${poke.name}</b> đã gục ngã vì mất máu đầu lượt!`)
+      battleLog(`💀 <b>${poke.name}</b> đã gục ngã vì sát thương đốt cuối lượt!`)
       if (!switchToNextAlivePokemon()) {
         showStoryResult(false)
         return true
@@ -574,6 +597,8 @@ function startNextTurn() {
   if (battle.currentTurnOwner === 'player') {
     let res = processStartOfTurnEffects(p)
     if (res === 'stunned') {
+      // Mất lượt nhưng vẫn chịu sát thương đốt cuối lượt
+      if (processEndOfTurnDot(p)) return
       battle.currentTurnOwner = 'bot'
       battle.isProcessingTurn = false
       startNextTurn()
@@ -585,6 +610,8 @@ function startNextTurn() {
   } else {
     let res = processStartOfTurnEffects(battle.enemyPoke)
     if (res === 'stunned') {
+      // Mất lượt nhưng vẫn chịu sát thương đốt cuối lượt
+      if (processEndOfTurnDot(battle.enemyPoke)) return
       battle.currentTurnOwner = 'player'
       battle.isProcessingTurn = false
       startNextTurn()
@@ -599,7 +626,9 @@ function startNextTurn() {
 
 function executeBotTurn() {
   battle.isProcessingTurn = true
-  setTimeout(() => {
+  setTimeout(async () => {
+    await awaitFxIdle()
+
     if (battle.enemyPoke.hp <= 0) return
 
     let p = store.team[battle.activePokeIdx]
@@ -613,11 +642,20 @@ function executeBotTurn() {
 
     tickSkillCooldowns(battle.enemyPoke)
 
+    await awaitFxIdle()
+
     if (battle.enemyPoke.hp <= 0) {
       handleStoryEnemyDefeated()
       battle.isProcessingTurn = false
       return
     }
+
+    // CUỐI lượt của địch: sát thương đốt trên chính địch
+    if (processEndOfTurnDot(battle.enemyPoke)) {
+      battle.isProcessingTurn = false
+      return
+    }
+    await awaitFxIdle()
 
     if (p.hp <= 0) {
       battleLog(`💀 <b>${p.name}</b> đã gục ngã!`)
@@ -636,7 +674,8 @@ function executeBotTurn() {
 
     if (battle.extraTurnOwner === 'bot') {
       battle.extraTurnOwner = null
-      determineFirstTurn()
+      battle.currentTurnOwner = 'player'
+      startNextTurn()
       return
     }
 
@@ -645,7 +684,7 @@ function executeBotTurn() {
   }, 800)
 }
 
-export function useStorySkill(skillIdx) {
+export async function useStorySkill(skillIdx) {
   if (!canUseSkill()) return
 
   let p = store.team[battle.activePokeIdx]
@@ -665,17 +704,23 @@ export function useStorySkill(skillIdx) {
 
   tickSkillCooldowns(p)
 
+  await awaitFxIdle()
+
   if (battle.enemyPoke.hp <= 0) {
     handleStoryEnemyDefeated()
     battle.isProcessingTurn = false
     return
   }
 
+  // CUỐI lượt của người chơi: sát thương đốt trên chính Pokémon đang xuất trận
   battle.isProcessingTurn = false
+  if (processEndOfTurnDot(p)) return
+  await awaitFxIdle()
 
   if (battle.extraTurnOwner === 'player') {
     battle.extraTurnOwner = null
-    determineFirstTurn()
+    battle.currentTurnOwner = 'bot'
+    startNextTurn()
     return
   }
 
@@ -739,11 +784,40 @@ function handleStoryEnemyDefeated() {
 }
 
 export function showStoryResult(win) {
+  applyPendingLevelUps()
   if (win) {
     markStoryCleared(battle.storySceneId)
     addQuestProgress('wins', 1)
   }
   battle.resultOpen = true
   battle.resultWin = win
+  saveGameState()
+}
+
+// ==========================================
+// GIAI ĐOẠN ONBOARDING (NHIỆM VỤ CHÍNH TUYẾN TÍNH)
+// Thay thế boolean hasCompletedFirstLogin cũ bằng stage-machine:
+// HOME(0) → LAB_DONE(1) → HOSPITAL(2) → GO_CAMPAIGN(3) → DONE(4)
+// ==========================================
+
+export const STORY_STAGES = {
+  HOME: 0,
+  LAB_DONE: 1,
+  HOSPITAL: 2,
+  GO_CAMPAIGN: 3,
+  DONE: 4,
+}
+
+export function getOnboardingStage() {
+  return store.onboardingStage ?? STORY_STAGES.HOME
+}
+
+export function isOnboardingActive() {
+  return getOnboardingStage() < STORY_STAGES.DONE
+}
+
+export function setOnboardingStage(stage) {
+  store.onboardingStage = stage
+  store.hasCompletedFirstLogin = stage >= STORY_STAGES.LAB_DONE
   saveGameState()
 }

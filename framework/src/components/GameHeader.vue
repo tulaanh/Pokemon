@@ -4,6 +4,7 @@ import { store, saveGameState, resetGameState } from '../game/store.js'
 import { getPlayerNextLevelExp } from '../game/stats.js'
 import { showToast, confirmModal } from './ui/toast.js'
 import { toggleMusic } from '../game/audio.js'
+import { openSettings } from './ui/settingsModal.js'
 
 const player = computed(() => store.gameState.player)
 const musicOn = computed(() => store.settings.musicEnabled)
@@ -84,6 +85,13 @@ async function onReset() {
             :class="musicOn ? 'border-violet-300 bg-violet-50 text-violet-600 hover:bg-violet-100' : 'border-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-200'"
           >
             {{ musicOn ? '🎵 Nhạc: Bật' : '🔇 Nhạc: Tắt' }}
+          </button>
+          <button
+            @click="openSettings()"
+            class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+            title="Cài đặt"
+          >
+            ⚙️ Cài Đặt
           </button>
           <button
             @click="onSave"

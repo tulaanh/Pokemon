@@ -13,7 +13,7 @@ import { getSkillGroupsForLevel } from './shop.js'
 
 export const battle = reactive({
   isBattling: false,
-  mode: null, // 'campaign' | 'gym' | 'story' | 'tower'
+  mode: null, // 'campaign' | 'gym' | 'story' | 'tower' | 'wild'
   activePokeIdx: null,
   teamIndices: [null, null, null],
   enemyPoke: null,
@@ -36,6 +36,7 @@ export const battle = reactive({
   rewards: { gems: 0, exp: 0, gold: 0, candy: 0 },
   log: [],
   skillQueue: [],
+  pendingLevelUps: [],
   resultOpen: false,
   resultWin: false,
   battleTitle: '',
@@ -68,6 +69,19 @@ export function pushFx(event) {
 
 export function clearFx() {
   if (battle.fxQueue) battle.fxQueue.length = 0
+}
+
+// Chờ hàng đợi FX xả hết để logic không vượt qua animation đang phát
+// An toàn: giới hạn tối đa 3s để tránh kẹt lượt nếu hàng đợi không được xả.
+export function awaitFxIdle(maxMs = 3000) {
+  return new Promise((resolve) => {
+    const start = Date.now()
+    const check = () => {
+      if (!battle.fxQueue || battle.fxQueue.length === 0 || Date.now() - start >= maxMs) resolve()
+      else setTimeout(check, 60)
+    }
+    check()
+  })
 }
 
 // Xác định phe của 1 Pokémon: player = đang thuộc đội HLV, còn lại = bot
@@ -465,27 +479,42 @@ export function gainExp(p, amount) {
     p.level++
     p.exp -= p.maxExp
     p.maxExp = Math.round(p.level * 50 + Math.pow(p.level, 1.5) * 10)
-    recalculatePokemonStats(p, store.gymBuffs)
-    p.skills.forEach((s) => recalculateSkillValues(s, p.level))
 
-    battleLog(`🎉 <b>${p.name} LÊN CẤP ${p.level}!</b> (Chỉ số đã được gia tăng!)`)
-
-    if (p.level % 5 === 0) {
-      let skillGroups = getSkillGroupsForLevel(p.level)
-      if (skillGroups) {
-        battle.skillQueue.push({
-          poke: p,
-          skillGroups,
-          level: p.level,
-          title: `🔥 THĂNG CẤP LEVEL ${p.level}: CHỌN HỌC KỸ NĂNG MỚI`,
-        })
-      }
+    if (!battle.pendingLevelUps.some((item) => item.poke === p)) {
+      battle.pendingLevelUps.push({ poke: p, levels: [] })
     }
+    battle.pendingLevelUps.find((item) => item.poke === p).levels.push(p.level)
+
+    battleLog(`🎉 <b>${p.name} LÊN CẤP ${p.level}!</b> (Chỉ số và kỹ năng sẽ cập nhật sau trận!)`)
   }
 
   if (p.level >= trainerLevel && p.exp > p.maxExp) {
     p.exp = p.maxExp
   }
+}
+
+export function applyPendingLevelUps() {
+  if (!battle.pendingLevelUps.length) return
+
+  battle.pendingLevelUps.forEach(({ poke, levels }) => {
+    recalculatePokemonStats(poke, store.gymBuffs)
+    poke.skills.forEach((skill) => recalculateSkillValues(skill, poke.level))
+
+    levels.forEach((level) => {
+      if (level % 5 !== 0) return
+      let skillGroups = getSkillGroupsForLevel(level)
+      if (skillGroups) {
+        battle.skillQueue.push({
+          poke,
+          skillGroups,
+          level,
+          title: `🔥 THĂNG CẤP LEVEL ${level}: CHỌN HỌC KỸ NĂNG MỚI`,
+        })
+      }
+    })
+  })
+
+  battle.pendingLevelUps = []
 }
 
 export function shiftSkillQueue() {
@@ -537,9 +566,49 @@ export function tickSkillCooldowns(poke) {
 }
 
 export function showBattleResult(win, onSaveCb) {
+  applyPendingLevelUps()
   battle.resultOpen = true
   battle.resultWin = win
   saveGameState()
+}
+
+// Bắt đầu trận chiến với Pokémon hoang dã
+export function startWildBattle(wildPokemon) {
+  if (!wildPokemon) return false
+
+  battle.isBattling = true
+  battle.mode = 'wild'
+  battle.activePokeIdx = null
+  battle.teamIndices = [null, null, null]
+  battle.enemyPoke = wildPokemon
+  battle.enemyTeam = []
+  battle.currentTurnOwner = 'player'
+  battle.extraTurnOwner = null
+  battle.isProcessingTurn = false
+  battle.selectingSlot = null
+  battle.waveIdx = 0
+  battle.campaignId = null
+  battle.storySceneId = null
+  battle.towerFloor = null
+  battle.currentEnemies = []
+  battle.gymType = null
+  battle.rewards = { gems: 0, exp: 0, gold: 0, candy: 0 }
+  battle.battleTitle = `🌿 Gặp ${wildPokemon.name} Hoang Dã`
+  battle.skillQueue = []
+  clearBattleLog()
+  clearFx()
+
+  healBattleTeam()
+
+  if (!switchToNextAlivePokemon()) return false
+
+  // Chỉ có 1 wave cho wild battle
+  battle.waveIndicator = `Wild Pokémon`
+
+  battleLog(`🌿 Bạn gặp phải <b>${wildPokemon.name}</b> Lv.${wildPokemon.level} hoang dã!`)
+  checkStartBattlePassives()
+  determineFirstTurn()
+  return true
 }
 
 // Danh sách Pokémon còn sống khác để đổi trong trận

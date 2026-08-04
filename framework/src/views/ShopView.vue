@@ -1,11 +1,12 @@
 <script setup>
 import { ref } from 'vue'
 import { store } from '../game/store.js'
-import { buyRareCandy, RARE_CANDY_PRICE, buyEvolutionStone, getStoneCatalog } from '../game/shop.js'
+import { buyRareCandy, RARE_CANDY_PRICE, buyEvolutionStone, getStoneCatalog, buyPokeball, getPokeballCatalog } from '../game/shop.js'
 import { showToast } from '../components/ui/toast.js'
 
 const feedback = ref('')
 const stoneCatalog = ref(getStoneCatalog())
+const pokeballCatalog = ref(getPokeballCatalog())
 
 function onBuyCandy(amount) {
   const result = buyRareCandy(amount)
@@ -29,6 +30,19 @@ function onBuyStone(stoneId) {
   showToast(`Đã mua ${result.amount} ${result.stone?.name || 'Đá Tiến Hóa'}!`, 'success')
   setTimeout(() => (feedback.value = ''), 4000)
 }
+
+function onBuyPokeball(ballId, amount = 1) {
+  const result = buyPokeball(ballId, amount)
+  if (!result.ok) {
+    showToast(result.message, 'error')
+    return
+  }
+  pokeballCatalog.value = getPokeballCatalog()
+  feedback.value = result.message
+  showToast(`Đã mua ${amount} ${result.ball?.name || 'Pokéball'}!`, 'success')
+  setTimeout(() => (feedback.value = ''), 4000)
+}
+
 </script>
 
 <template>
@@ -39,7 +53,7 @@ function onBuyStone(stoneId) {
       <!-- KẸO KINH NGHIỆM -->
       <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-5">
         <h4 class="text-lg font-bold text-purple-600">🍬 Kẹo Kinh Nghiệm (Rare Candy)</h4>
-        <p class="my-2 text-xs text-slate-500">Tăng ngay <b class="text-slate-700">1 cấp</b> cho Pokémon chọn lựa (Cấp &lt; 90).</p>
+        <p class="my-2 text-xs text-slate-500">Tăng ngay <b class="text-slate-700">1 cấp</b> cho Pokémon chọn lựa (Cấp < 90).</p>
         <p class="text-sm text-slate-700">Trong kho có: <b class="text-purple-600">{{ store.inventory.candy }}</b> viên</p>
         <p class="my-3 text-base font-bold text-amber-600">Giá: {{ RARE_CANDY_PRICE.toLocaleString() }} 💰 Vàng / viên</p>
 
@@ -90,6 +104,51 @@ function onBuyStone(stoneId) {
             >
               Mua x1
             </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- POKÉBALL -->
+      <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-5">
+        <h4 class="text-lg font-bold text-red-600">🔴 Pokéball</h4>
+        <p class="my-2 text-xs text-slate-500">Dùng để bắt Pokémon hoang dã trên bản đồ. Các loại bóng tốt hơn có tỷ lệ bắt cao hơn.</p>
+
+        <div class="mt-3 space-y-2">
+          <div
+            v-for="ball in pokeballCatalog"
+            :key="ball.id"
+            class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3"
+          >
+            <div class="min-w-0">
+              <div class="text-sm font-bold text-slate-800">{{ ball.emoji }} {{ ball.name }}</div>
+              <div class="text-[11px] text-slate-500">{{ ball.description }}</div>
+              <div class="mt-0.5 text-xs text-slate-600">
+                Trong kho: <b class="text-red-600">{{ ball.count }}</b> | Giá: <b class="text-red-600">{{ ball.price.toLocaleString() }} 💰</b>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button
+                @click="onBuyPokeball(ball.id, 1)"
+                :disabled="store.gold < ball.price"
+                class="shrink-0 rounded-lg bg-gradient-to-r from-red-500 to-rose-500 px-3 py-1.5 text-xs font-black text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Mua x1
+              </button>
+              <button
+                @click="onBuyPokeball(ball.id, 5)"
+                :disabled="store.gold < ball.price * 5"
+                class="shrink-0 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 px-3 py-1.5 text-xs font-black text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Mua x5
+              </button>
+              <button
+                @click="onBuyPokeball(ball.id, 10)"
+                :disabled="store.gold < ball.price * 10"
+                class="shrink-0 rounded-lg bg-gradient-to-r from-purple-500 to-violet-600 px-3 py-1.5 text-xs font-black text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Mua x10
+              </button>
+            </div>
           </div>
         </div>
       </div>

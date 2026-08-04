@@ -20,12 +20,14 @@ import {
   executeSkillAction,
   gainExp,
   switchToNextAlivePokemon,
+  applyPendingLevelUps,
   tickSkillCooldowns,
   canUseSkill,
   healBattleTeam,
   calculateDotDamage,
   isStunned,
   consumeExtraTurnOnEntry,
+  awaitFxIdle,
 } from './battle.js'
 
 export const CAMPAIGN_CHAPTERS = [
@@ -435,7 +437,7 @@ export function checkStartBattlePassives() {
   if (battle.enemyPoke) applyStartBattlePassive(battle.enemyPoke)
 }
 
-// === HIỆU ỨNG ĐẦU LƯỢT (CHIẾN DỊCH: DOT THEO % ATK NGUỒN GÂY RA) ===
+// === HIỆU ỨNG ĐẦU LƯỢT (PASSIVE + CHOÁNG + GIẢM THỜI LƯỢNG BUFF/DEBUFF) ===
 function processStartOfTurnEffects(poke) {
   let isPlayer = poke === store.team[battle.activePokeIdx]
   let pokeTitle = isPlayer ? `<b>${poke.name}</b>` : `<b>${poke.name} (Bot)</b>`
@@ -447,6 +449,27 @@ function processStartOfTurnEffects(poke) {
     battleLog(`😵 ${pokeTitle} bị CHOÁNG — mất 1 lượt!`)
     return 'stunned'
   }
+
+  // Buff/debuff (không phải DoT) giảm thời lượng ở đầu lượt
+  const dotEffectTypes = ['burn', 'shock', 'poison', 'bleed']
+  for (let i = poke.effects.length - 1; i >= 0; i--) {
+    let eff = poke.effects[i]
+    if (dotEffectTypes.includes(eff.type)) continue
+    eff.duration--
+    if (eff.duration <= 0) {
+      battleLog(`✨ Hiệu ứng [${eff.name}] trên ${pokeTitle} đã hết hạn.`)
+      poke.effects.splice(i, 1)
+    }
+  }
+
+  return false
+}
+
+// === SÁT THƯƠNG ĐỐT CUỐI LƯỢT (CHIẾN DỊCH: DOT THEO % ATK NGUỒN GÂY RA) ===
+// Pokémon bị dính hiệu ứng đốt chịu sát thương vào CUỐI lượt của chính nó (chuẩn Pokémon).
+function processEndOfTurnDot(poke) {
+  let isPlayer = poke === store.team[battle.activePokeIdx]
+  let pokeTitle = isPlayer ? `<b>${poke.name}</b>` : `<b>${poke.name} (Bot)</b>`
 
   const dotEffectTypes = ['burn', 'shock', 'poison', 'bleed']
 
@@ -460,18 +483,18 @@ function processStartOfTurnEffects(poke) {
       let sourceInfo = eff.sourceName ? ` (từ ${eff.sourceName})` : ''
       battleLog(`🔥 ${pokeTitle} chịu <b>${dmg}</b> sát thương từ [${eff.name}]${sourceInfo}!`)
       pushFx({ type: 'dot', side: fxSide(poke), dmg, hpPct: getHpPct(poke) })
-    }
 
-    eff.duration--
-    if (eff.duration <= 0) {
-      battleLog(`✨ Hiệu ứng [${eff.name}] trên ${pokeTitle} đã hết hạn.`)
-      poke.effects.splice(i, 1)
+      eff.duration--
+      if (eff.duration <= 0) {
+        battleLog(`✨ Hiệu ứng [${eff.name}] trên ${pokeTitle} đã hết hạn.`)
+        poke.effects.splice(i, 1)
+      }
     }
   }
 
   if (poke.hp <= 0) {
     if (isPlayer) {
-      battleLog(`💀 <b>${poke.name}</b> đã gục ngã vì mất máu đầu lượt!`)
+      battleLog(`💀 <b>${poke.name}</b> đã gục ngã vì sát thương đốt cuối lượt!`)
       if (!switchToNextAlivePokemon()) {
         showCampaignResult(false)
         return true
@@ -543,6 +566,8 @@ function startNextTurn() {
   if (battle.currentTurnOwner === 'player') {
     let res = processStartOfTurnEffects(p)
     if (res === 'stunned') {
+      // Mất lượt nhưng vẫn chịu sát thương đốt cuối lượt
+      if (processEndOfTurnDot(p)) return
       battle.currentTurnOwner = 'bot'
       battle.isProcessingTurn = false
       startNextTurn()
@@ -554,6 +579,8 @@ function startNextTurn() {
   } else {
     let res = processStartOfTurnEffects(battle.enemyPoke)
     if (res === 'stunned') {
+      // Mất lượt nhưng vẫn chịu sát thương đốt cuối lượt
+      if (processEndOfTurnDot(battle.enemyPoke)) return
       battle.currentTurnOwner = 'player'
       battle.isProcessingTurn = false
       startNextTurn()
@@ -568,7 +595,9 @@ function startNextTurn() {
 
 function executeBotTurn() {
   battle.isProcessingTurn = true
-  setTimeout(() => {
+  setTimeout(async () => {
+    await awaitFxIdle()
+
     if (battle.enemyPoke.hp <= 0) return
 
     let p = store.team[battle.activePokeIdx]
@@ -582,11 +611,20 @@ function executeBotTurn() {
 
     tickSkillCooldowns(battle.enemyPoke)
 
+    await awaitFxIdle()
+
     if (battle.enemyPoke.hp <= 0) {
       handleEnemyDefeated()
       battle.isProcessingTurn = false
       return
     }
+
+    // CUỐI lượt của địch: sát thương đốt trên chính địch
+    if (processEndOfTurnDot(battle.enemyPoke)) {
+      battle.isProcessingTurn = false
+      return
+    }
+    await awaitFxIdle()
 
     if (p.hp <= 0) {
       battleLog(`💀 <b>${p.name}</b> đã gục ngã!`)
@@ -605,7 +643,8 @@ function executeBotTurn() {
 
     if (battle.extraTurnOwner === 'bot') {
       battle.extraTurnOwner = null
-      determineFirstTurn()
+      battle.currentTurnOwner = 'player'
+      startNextTurn()
       return
     }
 
@@ -614,7 +653,7 @@ function executeBotTurn() {
   }, 800)
 }
 
-export function useSkill(skillIdx) {
+export async function useSkill(skillIdx) {
   if (!canUseSkill()) return
 
   let p = store.team[battle.activePokeIdx]
@@ -634,17 +673,23 @@ export function useSkill(skillIdx) {
 
   tickSkillCooldowns(p)
 
+  await awaitFxIdle()
+
   if (battle.enemyPoke.hp <= 0) {
     handleEnemyDefeated()
     battle.isProcessingTurn = false
     return
   }
 
+  // CUỐI lượt của người chơi: sát thương đốt trên chính Pokémon đang xuất trận
   battle.isProcessingTurn = false
+  if (processEndOfTurnDot(p)) return
+  await awaitFxIdle()
 
   if (battle.extraTurnOwner === 'player') {
     battle.extraTurnOwner = null
-    determineFirstTurn()
+    battle.currentTurnOwner = 'bot'
+    startNextTurn()
     return
   }
 
@@ -687,28 +732,40 @@ function handleEnemyDefeated() {
     if (idx !== null && store.team[idx]) gainExp(store.team[idx], earnedExp)
   })
 
+  // Người chơi cũng nhận EXP ngay khi hạ từng Pokémon địch.
+  // EXP thưởng hoàn thành màn ở cuối trận vẫn được cộng riêng.
+  let playerLevels = addPlayerExp(earnedExp)
+  if (playerLevels > 0) {
+    battleLog(`⬆️ <b>Nâng cấp người chơi! Lv.${store.gameState.player.level}</b> 🎉`)
+  }
+
   battle.waveIdx++
   if (battle.waveIdx < battle.currentEnemies.length) {
     battleLog(`➡️ Chuẩn bị bước vào Wave ${battle.waveIdx + 1}...`)
     setTimeout(() => loadCampaignWave(battle.waveIdx), 1200)
   } else {
-    let campData = CAMPAIGN_LEVELS.find((c) => c.id === battle.campaignId)
-    store.gems += campData.rewardGems
-    battle.rewards.gems = campData.rewardGems
-    battle.rewards.exp += campData.rewardExp
+    // Trận huấn luyện: không có campData (campaignId = null) → bỏ qua thưởng màn
+    if (battle.mode !== 'training') {
+      let campData = CAMPAIGN_LEVELS.find((c) => c.id === battle.campaignId)
+      store.gems += campData.rewardGems
+      battle.rewards.gems = campData.rewardGems
+      battle.rewards.exp += campData.rewardExp
 
-    battle.teamIndices.forEach((idx) => {
-      if (idx !== null && store.team[idx]) gainExp(store.team[idx], campData.rewardExp)
-    })
-    let levels = addPlayerExp(campData.rewardExp)
-    if (levels > 0) battleLog(`⬆️ <b>Nâng cấp người chơi! Lv.${store.gameState.player.level}</b> 🎉`)
+      battle.teamIndices.forEach((idx) => {
+        if (idx !== null && store.team[idx]) gainExp(store.team[idx], campData.rewardExp)
+      })
+      let levels = addPlayerExp(campData.rewardExp)
+      if (levels > 0) battleLog(`⬆️ <b>Nâng cấp người chơi! Lv.${store.gameState.player.level}</b> 🎉`)
+    }
 
     showCampaignResult(true)
   }
 }
 
 export function showCampaignResult(win) {
-  if (win) {
+  applyPendingLevelUps()
+  // Trận huấn luyện không đánh dấu chiến dịch, không tính quest thắng
+  if (win && battle.mode !== 'training') {
     markCampaignCleared(battle.campaignId)
     addQuestProgress('wins', 1)
   }

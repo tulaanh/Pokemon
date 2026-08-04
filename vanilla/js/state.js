@@ -155,6 +155,16 @@ function loadGameState() {
                     console.log(`🔄 Migration: ${p.name} - Chuyển passive cũ [${p.passive.name}] vào passives[].`);
                 }
             });
+
+            // Migration: Pokémon cũ thiếu Skill2/Ultimate → bổ sung theo cấp độ
+            // (Chạy trễ để đảm bảo generateSkillInstance/recalculateSkillValues đã nạp xong)
+            if (typeof ensureSkillsByLevel === 'function') {
+                setTimeout(() => {
+                    if (team && team.length > 0) {
+                        team.forEach(pok => ensureSkillsByLevel(pok));
+                    }
+                }, 0);
+            }
         }
     } catch (e) {
         console.error('❌ Lỗi khi tải tiến trình game:', e);
