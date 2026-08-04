@@ -206,7 +206,7 @@ export function quitTower() {
   saveGameState()
 }
 
-export function loadTowerWave(waveIdx) {
+export function loadTowerWave(waveIdx, forcedOwner = null) {
   battle.enemyPoke = battle.currentEnemies[waveIdx]
   battle.isProcessingTurn = false
   battle.waveIndicator = `Tầng ${battle.towerFloor} — Đối thủ ${waveIdx + 1}/${battle.currentEnemies.length}`
@@ -215,7 +215,7 @@ export function loadTowerWave(waveIdx) {
   const badge = e.boss ? ' 👑 BOSS' : e.elite ? ' ✨ ELITE' : ''
   battleLog(`⚔️ [Tầng ${battle.towerFloor}] Bắt đầu! <b>${store.team[battle.activePokeIdx].name}</b> VS <b>${e.name}${badge} ${ENEMY_TAG}</b>`)
   checkStartBattlePassives()
-  towerDetermineFirstTurn()
+  towerDetermineFirstTurn(forcedOwner)
 }
 
 export function checkStartBattlePassives() {
@@ -281,11 +281,7 @@ function towerProcessEndOfTurnDot(poke) {
   if (poke.hp <= 0) {
     if (isPlayer) {
       battleLog(`💀 <b>${poke.name}</b> đã gục ngã vì sát thương đốt cuối lượt!`)
-      if (!switchToNextAlivePokemon()) {
-        showTowerResult(false)
-        return true
-      }
-      towerDetermineFirstTurn()
+      if (!promptTowerFaintSwitch()) return true
       return true
     }
     handleTowerEnemyDefeated()
@@ -295,7 +291,7 @@ function towerProcessEndOfTurnDot(poke) {
 }
 
 // === XÁC ĐỊNH NGƯỜI ĐI TRƯỚC KHI VỪA XUẤT TRẬN (THEO TỐC ĐỘ) ===
-export function towerDetermineFirstTurn() {
+export function towerDetermineFirstTurn(forcedOwner = null) {
   battle.extraTurnOwner = null
   let p = store.team[battle.activePokeIdx]
   if (!p || p.hp <= 0 || battle.enemyPoke.hp <= 0) return
@@ -318,22 +314,26 @@ export function towerDetermineFirstTurn() {
     return
   }
 
-  let pSpd = getEffectiveSpeed(p)
-  let eSpd = getEffectiveSpeed(battle.enemyPoke)
-
-  if (pSpd > eSpd) {
-    battle.currentTurnOwner = 'player'
-  } else if (eSpd > pSpd) {
-    battle.currentTurnOwner = 'bot'
+  if (forcedOwner) {
+    battle.currentTurnOwner = forcedOwner
   } else {
-    battle.currentTurnOwner = Math.random() < 0.5 ? 'player' : 'bot'
+    let pSpd = getEffectiveSpeed(p)
+    let eSpd = getEffectiveSpeed(battle.enemyPoke)
+
+    if (pSpd > eSpd) {
+      battle.currentTurnOwner = 'player'
+    } else if (eSpd > pSpd) {
+      battle.currentTurnOwner = 'bot'
+    } else {
+      battle.currentTurnOwner = Math.random() < 0.5 ? 'player' : 'bot'
+    }
   }
 
   let firstName =
     battle.currentTurnOwner === 'player' ? `<b>${p.name}</b>` : `<b>${battle.enemyPoke.name} ${ENEMY_TAG}</b>`
-  if (pSpd === eSpd) {
+  if (!forcedOwner && getEffectiveSpeed(p) === getEffectiveSpeed(battle.enemyPoke)) {
     battleLog(`🎲 Tốc độ ngang bằng — chọn ngẫu nhiên: ${firstName} đi trước!`)
-  } else {
+  } else if (!forcedOwner) {
     battleLog(`⚡ ${firstName} đi trước nhờ Tốc Độ!`)
   }
 
@@ -410,14 +410,11 @@ function towerExecuteBotTurn() {
 
     if (p.hp <= 0) {
       battleLog(`💀 <b>${p.name}</b> đã gục ngã!`)
-      if (!switchToNextAlivePokemon()) {
-        battleLog(`💀 Toàn bộ đội hình đã gục ngã! Run tháp kết thúc.`)
+      if (!promptTowerFaintSwitch()) {
         battle.isProcessingTurn = false
-        showTowerResult(false)
         return
       }
       battle.isProcessingTurn = false
-      towerDetermineFirstTurn()
       return
     }
 
@@ -491,6 +488,39 @@ export function performTowerInBattleSwitch(targetIdx) {
   towerDetermineFirstTurn()
 }
 
+// === XỬ LÝ HẠ GỤC — CHO CHỌN POKÉMON THAY THẾ (THÁP) ===
+
+// Khi Pokémon người chơi gục, mở modal cho phép chọn con thay thế
+export function promptTowerFaintSwitch() {
+  for (let i = 0; i < 3; i++) {
+    let idx = battle.teamIndices[i]
+    if (idx !== null && store.team[idx] && store.team[idx].hp > 0 && idx !== battle.activePokeIdx) {
+      battle.awaitingFaintSwitch = true
+      battle.isProcessingTurn = false
+      battle.currentTurnOwner = 'player'
+      battleLog(`🐣 <b>${store.team[battle.activePokeIdx].name}</b> đã gục — chọn Pokémon tiếp theo ra sân!`)
+      return true
+    }
+  }
+  // Không còn Pokémon nào khác để thay thế
+  battleLog(`💀 Toàn bộ đội hình đã gục ngã! Run tháp kết thúc.`)
+  battle.isProcessingTurn = false
+  showTowerResult(false)
+  return false
+}
+
+// Xác nhận chọn Pokémon thay thế sau khi con trước đó gục
+export function confirmTowerFaintSwitch(targetIdx) {
+  battle.awaitingFaintSwitch = false
+  let oldPoke = store.team[battle.activePokeIdx]
+  battle.activePokeIdx = targetIdx
+  let newPoke = store.team[targetIdx]
+
+  battleLog(`🔄 <b>${oldPoke.name}</b> đã gục, tung <b>${newPoke.name}</b> ra sân!`)
+  applyStartBattlePassive(newPoke)
+  towerDetermineFirstTurn('player')
+}
+
 // === XỬ LÝ HẠ GỤC ĐỐI THỦ / XONG TẦNG ===
 function handleTowerEnemyDefeated() {
   let earnedExp = 30 + battle.enemyPoke.level * 10
@@ -505,7 +535,7 @@ function handleTowerEnemyDefeated() {
   battle.waveIdx++
   if (battle.waveIdx < battle.currentEnemies.length) {
     battleLog(`➡️ Đối thủ tiếp theo trên tầng ${battle.towerFloor}...`)
-    setTimeout(() => loadTowerWave(battle.waveIdx), 1200)
+    setTimeout(() => loadTowerWave(battle.waveIdx, 'bot'), 1200)
   } else {
     handleTowerFloorCleared()
   }

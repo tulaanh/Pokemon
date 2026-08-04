@@ -263,6 +263,8 @@ export class WorldScene extends Phaser.Scene {
       data: json,
     })
 
+    this.mapJson = json
+
     const map = this.make.tilemap({ key: 'current' })
     // Kích thước thực (px) từ JSON — camera/bounds tin kích thước này thay vì maps.js,
     // tránh lệch camera nếu export map đổi kích thước mà quên cập nhật maps.js.
@@ -504,31 +506,53 @@ export class WorldScene extends Phaser.Scene {
     return points
   }
 
-  // Điểm tương tác NPC từ objectgroup `doors` — object có tên kết thúc `_npc`
-  // (marker điểm đánh dấu, rect 0x0) → tạo ô tương tác cỡ tile quanh tâm.
+  // Điểm tương tác NPC từ objectgroup `doors` (object có tên kết thúc `_npc`)
+  // VÀ objectgroup `npc` (bất kỳ object nào).
   // Object NPC không có property `to` nên parseDoors bỏ qua → không thành cửa.
   buildNpcPoints(json, tileSize) {
     const points = []
-    const layer = (json.layers || []).find((l) => l.type === 'objectgroup' && l.name === 'doors')
-    if (!layer) return points
-    for (const obj of layer.objects || []) {
-      if (!/^.+_npc$/.test(obj.name || '')) continue
-      const cx = obj.x + (obj.width || 0) / 2
-      const cy = obj.y + (obj.height || 0) / 2
-      const col = Math.floor(cx / tileSize)
-      const row = Math.floor(cy / tileSize)
-      points.push({
-        id: `npc-${obj.name}-${col}-${row}`,
-        npcId: obj.name,
-        col,
-        row,
-        type: 'npc',
-        name: obj.name,
-        value: 2,
-        x: col * tileSize + tileSize / 2,
-        y: row * tileSize + tileSize,
-        radius: tileSize,
-      })
+    for (const layer of json.layers || []) {
+      if (layer.type !== 'objectgroup') continue
+      if (layer.name === 'doors') {
+        for (const obj of layer.objects || []) {
+          if (!/^.+_npc$/.test(obj.name || '')) continue
+          const cx = obj.x + (obj.width || 0) / 2
+          const cy = obj.y + (obj.height || 0) / 2
+          const col = Math.floor(cx / tileSize)
+          const row = Math.floor(cy / tileSize)
+          points.push({
+            id: `npc-${obj.name}-${col}-${row}`,
+            npcId: obj.name,
+            col,
+            row,
+            type: 'npc',
+            name: obj.name,
+            value: 2,
+            x: col * tileSize + tileSize / 2,
+            y: row * tileSize + tileSize,
+            radius: tileSize,
+          })
+        }
+      } else if (layer.name === 'npc') {
+        for (const obj of layer.objects || []) {
+          const cx = obj.x + (obj.width || 0) / 2
+          const cy = obj.y + (obj.height || 0) / 2
+          const col = Math.floor(cx / tileSize)
+          const row = Math.floor(cy / tileSize)
+          points.push({
+            id: `npc-${obj.name}-${col}-${row}`,
+            npcId: obj.name,
+            col,
+            row,
+            type: 'npc',
+            name: obj.name,
+            value: 2,
+            x: col * tileSize + tileSize / 2,
+            y: row * tileSize + tileSize,
+            radius: tileSize,
+          })
+        }
+      }
     }
     return points
   }
@@ -705,7 +729,7 @@ export class WorldScene extends Phaser.Scene {
           this.callbacks.onOpen?.(loc.mode)
         }
       } else if (target.type === 'io') {
-        this.handleTransition(target)
+        this.callbacks.onTileInteract?.(target)
       } else if (target.type === 'wild') {
         this.handleWildEncounter(target)
       } else {
@@ -746,6 +770,20 @@ export class WorldScene extends Phaser.Scene {
     for (const wall of this.walls?.getChildren() || []) {
       if (x >= wall.left && x <= wall.right && y >= wall.top && y <= wall.bottom) {
         return false
+      }
+    }
+
+    // Kiểm tra trực tiếp dữ liệu tilelayer có property value = 1 (layer chặn như "conclusion")
+    // — độc lập với physics walls, đảm bảo Pokémon không bao giờ spawn trên ô chặn
+    if (this.mapJson) {
+      for (const layer of this.mapJson.layers) {
+        if (layer.type !== 'tilelayer') continue
+        const prop = layer.properties?.find((p) => p.value === 1)
+        if (!prop) continue
+        const idx = col + row * layer.width
+        if (idx >= 0 && idx < layer.data.length && layer.data[idx] !== 0) {
+          return false
+        }
       }
     }
 

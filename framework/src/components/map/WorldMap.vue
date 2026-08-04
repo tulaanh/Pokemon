@@ -6,7 +6,8 @@ import { getPlayerNextLevelExp } from '../../game/stats.js'
 import { POKEDEX_LIMIT } from '../../game/data.js'
 import { WorldScene, setWorldRuntime } from './worldScene.js'
 import { LOCATIONS } from '../../game/world.js'
-import { getMap, TOWN_ID, getMapTilesets, getMapSpawn } from '../../game/maps.js'
+import { getMap, TOWN_ID, getMapTilesets, getMapSpawn, getMapTransitions } from '../../game/maps.js'
+import { NPCS, QUESTS } from '../../game/quests.js'
 import { showToast } from '../ui/toast.js'
 import { openSettings } from '../ui/settingsModal.js'
 import { beginScreenTransition, endScreenTransition, setScreenProgress } from '../../game/screenTransition.js'
@@ -15,6 +16,8 @@ import OakLabDialogue from '../onboarding/OakLabDialogue.vue'
 import HomeStartDialogue from '../onboarding/HomeStartDialogue.vue'
 import HospitalStoryDialogue from '../onboarding/HospitalStoryDialogue.vue'
 import HospitalModal from './HospitalModal.vue'
+import InteractionMenu from './InteractionMenu.vue'
+import NpcDialogue from './NpcDialogue.vue'
 
 const emit = defineEmits(['open'])
 
@@ -34,6 +37,11 @@ const cameraY = ref(0)
 const viewportW = ref(0)
 const viewportH = ref(0)
 const infoPanelOpen = ref(false) // bảng thông tin trượt trái, bấm Tab để bật/tắt
+
+const interactMenuOpen = ref(false) // bảng chọn khi gần ô tương tác (cửa, NPC)
+const interactMenu = ref(null) // dữ liệu bảng chọn hiện tại
+const npcDialogueOpen = ref(false) // hội thoại NPC (nói chuyện / nhiệm vụ)
+const npcDialogue = ref(null) // dữ liệu hội thoại NPC hiện tại
 
 let game = null
 let resizeObserver = null
@@ -178,7 +186,15 @@ function gateOnboarding() {
 // Đồng bộ trạng thái khoá di chuyển của scene với hội thoại/bảng thông tin đang mở
 function syncSceneLock() {
   const scene = game?.scene?.getScene('WorldScene')
-  scene?.setLocked?.(oakDialogueOpen.value || homeTalkOpen.value || hospitalStoryOpen.value || hospitalOpen.value || infoPanelOpen.value)
+  scene?.setLocked?.(
+    oakDialogueOpen.value ||
+      homeTalkOpen.value ||
+      hospitalStoryOpen.value ||
+      hospitalOpen.value ||
+      infoPanelOpen.value ||
+      interactMenuOpen.value ||
+      npcDialogueOpen.value,
+  )
 }
 
 function openOakDialogue() {
@@ -332,20 +348,14 @@ const INTERACT_HANDLERS = {
   },
   // NPC mở cửa hàng / cửa hàng Gacha (store_npc / gacha_npc trong bản đồ tương ứng)
   npc: (pt) => {
-    const npcModes = { store_npc: 'shop', gacha_npc: 'gacha' }
-    const mode = npcModes[pt.npcId]
-    if (!mode) {
-      showToast(`${INTERACT_LABELS[pt.type] || 'NPC'} tại ô (${pt.col}, ${pt.row})`)
-      return
-    }
-    if (gateOnboarding()) return
-    emit('open', mode)
+    openNpcMenu(pt)
   },
   // dialogue: (pt) => openNpcDialogue(pt.value),
   // quest: (pt) => openQuest(pt.value),
 }
 const INTERACT_LABELS = { interac: 'Điểm tương tác', quest: 'Nhiệm vụ', io: 'Cửa', healing: 'Y tá', npc: 'NPC', dialogue: 'Hội thoại' }
 
+// Xử lý tương tác ô cửa (io): mở bảng chọn xác nhận
 function onTileInteract(pt) {
   // Điểm nói chuyện với Giáo sư Oak trong lab
   if (pt.id === 'oak') {
@@ -357,12 +367,114 @@ function onTileInteract(pt) {
     }
     return
   }
+  if (pt.type === 'io') {
+    openIoMenu(pt)
+    return
+  }
   const handler = INTERACT_HANDLERS[pt.type]
   if (handler) {
     handler(pt)
     return
   }
   showToast(`${INTERACT_LABELS[pt.type] || pt.type} tại ô (${pt.col}, ${pt.row})`)
+}
+
+// === BẢNG CHỌN XÁC NHẬN CỬA (io) ===
+function openIoMenu(pt) {
+  const mapId = currentMapId.value
+  const t = getMapTransitions(mapId)[`${pt.col},${pt.row}`]
+  let label = 'Cửa'
+  if (t?.to === 'house') label = 'Vào Nhà'
+  else if (t?.to === 'lab') label = 'Vào Phòng Lab'
+  else if (t?.to === 'hospital') label = 'Vào Bệnh Viện'
+  else if (t?.to === 'store') label = 'Vào Cửa Hàng'
+  else if (t?.to === 'gacha_store') label = 'Vào Cửa Hàng Gacha'
+  else if (t?.to === 'gym') label = 'Vào Phòng Gym'
+  else if (t?.to === 'campaign') label = 'Vào Chiến Dịch'
+  interactMenuOpen.value = true
+  interactMenu.value = {
+    title: `🚪 ${label}`,
+    icon: '🚪',
+    pt,
+    choices: [
+      { id: 'enter', label: 'Đi vào', icon: '🚪' },
+      { id: 'cancel', label: 'Để dành', icon: '❌' },
+    ],
+  }
+  syncSceneLock()
+}
+
+function onInteractMenuSelect(choiceId) {
+  if (!interactMenu.value) return
+  const pt = interactMenu.value.pt
+  interactMenuOpen.value = false
+  interactMenu.value = null
+  syncSceneLock()
+
+  if (pt.type === 'io') {
+    if (choiceId === 'enter') {
+      const scene = game?.scene?.getScene('WorldScene')
+      scene?.handleTransition?.(pt)
+    }
+    return
+  }
+
+  if (pt.type === 'npc') {
+    onNpcMenuSelect(choiceId, pt.npcId)
+    return
+  }
+}
+
+// === BẢNG CHỌN NPC ===
+function openNpcMenu(pt) {
+  const npcId = pt.npcId
+  const npc = NPCS[npcId]
+  const hasQuest = npc?.questId && QUESTS[npc.questId]
+  const choices = [{ id: 'talk', label: '💬 Nói chuyện', icon: '💬' }]
+  if (hasQuest) choices.push({ id: 'quest', label: '📜 Nhiệm vụ', icon: '📜' })
+  // Store/gacha clerk: thêm chức năng mua sắm
+  if (npcId === 'store_npc') choices.push({ id: 'shop', label: '🛒 Cửa Hàng', icon: '🛒' })
+  if (npcId === 'gacha_npc') choices.push({ id: 'gacha', label: '🎁 Gacha', icon: '🎁' })
+  interactMenuOpen.value = true
+  interactMenu.value = {
+    title: `${npc?.icon || '👤'} ${npc?.name || 'NPC'}`,
+    icon: npc?.icon || '👤',
+    pt,
+    choices,
+  }
+  syncSceneLock()
+}
+
+function onNpcMenuSelect(choiceId, npcId) {
+  if (!npcId) return
+  interactMenuOpen.value = false
+  interactMenu.value = null
+  syncSceneLock()
+
+  if (choiceId === 'talk') {
+    openNpcDialogue(npcId, 'smalltalk')
+    return
+  }
+  if (choiceId === 'quest') {
+    openNpcDialogue(npcId, 'quest')
+    return
+  }
+  if (choiceId === 'shop') {
+    if (gateOnboarding()) return
+    emit('open', 'shop')
+    return
+  }
+  if (choiceId === 'gacha') {
+    if (gateOnboarding()) return
+    emit('open', 'gacha')
+    return
+  }
+}
+
+function openNpcDialogue(npcId, mode) {
+  npcDialogueOpen.value = true
+  npcDialogue.value = { npcId, mode }
+  syncSceneLock()
 }
 
 // --- LIFECYCLE ---
@@ -785,8 +897,26 @@ watch(onboardingStage, () => {
         </button>
       </div>
     </div>
-  </Teleport>
-</template>
+   </Teleport>
+
+   <!-- BẢNG CHỌN XÁC NHẬN CỬA (io) -->
+   <InteractionMenu
+     :open="interactMenuOpen"
+     :title="interactMenu?.title || ''"
+     :icon="interactMenu?.icon || ''"
+     :choices="interactMenu?.choices || []"
+     @select="onInteractMenuSelect"
+     @close="interactMenuOpen = false; interactMenu = null; syncSceneLock()"
+   />
+
+   <!-- HỘI THOẠI NPC (nói chuyện / nhiệm vụ) -->
+   <NpcDialogue
+     :open="npcDialogueOpen"
+     :npc-id="npcDialogue?.npcId || ''"
+     :mode="npcDialogue?.mode || 'smalltalk'"
+     @complete="npcDialogueOpen = false; npcDialogue = null; syncSceneLock()"
+   />
+ </template>
 
 <style scoped>
 /* Animation cho popover */

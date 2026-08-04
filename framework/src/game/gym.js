@@ -322,10 +322,7 @@ function gymProcessEndOfTurnDot(poke) {
   if (poke.hp <= 0) {
     if (isPlayer) {
       battleLog(`💀 <b>${poke.name}</b> đã gục ngã vì sát thương đốt cuối lượt!`)
-      if (!gymSwitchToNextAlive()) {
-        showGymResult(false)
-        return true
-      }
+      if (!gymPromptFaintSwitch()) return true
       gymDetermineFirstTurn()
       return true
     }
@@ -337,11 +334,8 @@ function gymProcessEndOfTurnDot(poke) {
   return false
 }
 
-// === XÁC ĐỊNH NGƯỜI ĐI TRƯỚC KHI VỪA XUẤT TRẬN (THEO TỐC ĐỘ) ===
-// Tốc độ chỉ quyết định ai đi trước khi Pokémon vừa xuất trận.
-// Tốc độ cao hơn -> đi trước. Bằng nhau -> chọn ngẫu nhiên 50/50.
-// Sau đó trận đấu diễn ra theo lượt bình thường (đối thủ đánh xen kẽ).
-function gymDetermineFirstTurn() {
+// === XÁC ĐỊNH NGƯỜI ĐI TRƯỚC KHI VỪA XUẤT TRẬN (THEO TỐC ĐỘ HOẶC BỊ ÉP) ===
+function gymDetermineFirstTurn(forcedOwner = null) {
   battle.extraTurnOwner = null
   let p = store.team[battle.activePokeIdx]
   if (!p || p.hp <= 0 || battle.enemyPoke.hp <= 0) return
@@ -365,22 +359,26 @@ function gymDetermineFirstTurn() {
     return
   }
 
-  let pSpd = getEffectiveSpeed(p)
-  let eSpd = getEffectiveSpeed(battle.enemyPoke)
-
-  if (pSpd > eSpd) {
-    battle.currentTurnOwner = 'player'
-  } else if (eSpd > pSpd) {
-    battle.currentTurnOwner = 'bot'
+  if (forcedOwner) {
+    battle.currentTurnOwner = forcedOwner
   } else {
-    battle.currentTurnOwner = Math.random() < 0.5 ? 'player' : 'bot'
+    let pSpd = getEffectiveSpeed(p)
+    let eSpd = getEffectiveSpeed(battle.enemyPoke)
+
+    if (pSpd > eSpd) {
+      battle.currentTurnOwner = 'player'
+    } else if (eSpd > pSpd) {
+      battle.currentTurnOwner = 'bot'
+    } else {
+      battle.currentTurnOwner = Math.random() < 0.5 ? 'player' : 'bot'
+    }
   }
 
   let firstName =
     battle.currentTurnOwner === 'player' ? `<b>${p.name}</b>` : `<b>${battle.enemyPoke.name} (HLV Gym)</b>`
-  if (pSpd === eSpd) {
+  if (!forcedOwner && getEffectiveSpeed(p) === getEffectiveSpeed(battle.enemyPoke)) {
     battleLog(`🎲 Tốc độ ngang bằng — chọn ngẫu nhiên: ${firstName} đi trước!`)
-  } else {
+  } else if (!forcedOwner) {
     battleLog(`⚡ ${firstName} đi trước nhờ Tốc Độ!`)
   }
 
@@ -445,7 +443,7 @@ function gymExecuteBotTurn() {
     if (battle.enemyPoke.hp <= 0) {
       let allDefeated = gymCheckEnemyDefeatedOrSwitch()
       battle.isProcessingTurn = false
-      if (!allDefeated) gymDetermineFirstTurn()
+      if (!allDefeated) gymDetermineFirstTurn('bot')
       return
     }
 
@@ -458,10 +456,8 @@ function gymExecuteBotTurn() {
 
     if (p.hp <= 0) {
       battleLog(`💀 <b>${p.name}</b> đã gục ngã!`)
-      if (!gymSwitchToNextAlive()) {
-        battleLog(`💀 Toàn bộ đội hình đã gục ngã! Gym thất bại.`)
+      if (!gymPromptFaintSwitch()) {
         battle.isProcessingTurn = false
-        showGymResult(false)
         return
       }
       battle.isProcessingTurn = false
@@ -508,7 +504,7 @@ export async function useGymSkill(skillIdx) {
   if (battle.enemyPoke.hp <= 0) {
     let allDefeated = gymCheckEnemyDefeatedOrSwitch()
     battle.isProcessingTurn = false
-    if (!allDefeated) gymDetermineFirstTurn()
+    if (!allDefeated) gymDetermineFirstTurn('bot')
     return
   }
 
@@ -538,6 +534,39 @@ export function performGymInBattleSwitch(targetIdx) {
 
   applyStartBattlePassive(newPoke)
   gymDetermineFirstTurn()
+}
+
+// === XỬ LÝ HẠ GỤC — CHO CHỌN POKÉMON THAY THẾ (GYM) ===
+
+// Khi Pokémon người chơi gục, mở modal cho phép chọn con thay thế
+export function gymPromptFaintSwitch() {
+  for (let i = 0; i < 3; i++) {
+    let idx = battle.teamIndices[i]
+    if (idx !== null && store.team[idx] && store.team[idx].hp > 0 && idx !== battle.activePokeIdx) {
+      battle.awaitingFaintSwitch = true
+      battle.isProcessingTurn = false
+      battle.currentTurnOwner = 'player'
+      battleLog(`🐣 <b>${store.team[battle.activePokeIdx].name}</b> đã gục — chọn Pokémon tiếp theo ra sân!`)
+      return true
+    }
+  }
+  // Không còn Pokémon nào khác để thay thế
+  battleLog(`💀 Toàn bộ đội hình đã gục ngã! Gym thất bại.`)
+  battle.isProcessingTurn = false
+  showGymResult(false)
+  return false
+}
+
+// Xác nhận chọn Pokémon thay thế sau khi con trước đó gục
+export function confirmGymFaintSwitch(targetIdx) {
+  battle.awaitingFaintSwitch = false
+  let oldPoke = store.team[battle.activePokeIdx]
+  battle.activePokeIdx = targetIdx
+  let newPoke = store.team[targetIdx]
+
+  battleLog(`🔄 <b>${oldPoke.name}</b> đã gục, tung <b>${newPoke.name}</b> vào sân Gym!`)
+  applyStartBattlePassive(newPoke)
+  gymDetermineFirstTurn('player')
 }
 
 // === XỬ LÝ THẮNG GYM ===

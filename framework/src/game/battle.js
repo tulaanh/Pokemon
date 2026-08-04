@@ -44,6 +44,8 @@ export const battle = reactive({
   waveIndicator: '',
   fxQueue: [],
   fxEnabled: true,
+  awaitingFaintSwitch: false,
+  wildDied: false,
 })
 
 // --- NHẬT KÝ CHIẾN ĐẤU ---

@@ -418,7 +418,7 @@ export function startCampaignBattle(campaignId) {
   return true
 }
 
-export function loadCampaignWave(waveIdx) {
+export function loadCampaignWave(waveIdx, forcedOwner = null) {
   let campData = CAMPAIGN_LEVELS.find((c) => c.id === battle.campaignId)
   let enemyConfig = battle.currentEnemies[waveIdx]
 
@@ -428,7 +428,7 @@ export function loadCampaignWave(waveIdx) {
 
   battleLog(`⚔️ [Wave ${waveIdx + 1}] Bắt đầu! <b>${store.team[battle.activePokeIdx].name}</b> VS <b>${battle.enemyPoke.name}</b>`)
   checkStartBattlePassives()
-  determineFirstTurn()
+  determineFirstTurn(forcedOwner)
 }
 
 export function checkStartBattlePassives() {
@@ -443,6 +443,7 @@ export function startWildBattle(wildPokemon) {
 
   battle.isBattling = true
   battle.mode = 'wild'
+  battle.wildDied = false
   battle.activePokeIdx = null
   battle.enemyPoke = wildPokemon
   battle.enemyTeam = []
@@ -543,11 +544,7 @@ function processEndOfTurnDot(poke) {
   if (poke.hp <= 0) {
     if (isPlayer) {
       battleLog(`💀 <b>${poke.name}</b> đã gục ngã vì sát thương đốt cuối lượt!`)
-      if (!switchToNextAlivePokemon()) {
-        showCampaignResult(false)
-        return true
-      }
-      determineFirstTurn()
+      if (!promptFaintSwitch()) return true
       return true
     }
     handleEnemyDefeated()
@@ -560,7 +557,7 @@ function processEndOfTurnDot(poke) {
 // Tốc độ chỉ quyết định ai đi trước khi Pokémon vừa xuất trận.
 // Tốc độ cao hơn -> đi trước. Bằng nhau -> chọn ngẫu nhiên 50/50.
 // Sau đó trận đấu diễn ra theo lượt bình thường (đối thủ đánh xen kẽ).
-export function determineFirstTurn() {
+export function determineFirstTurn(forcedOwner = null) {
   battle.extraTurnOwner = null
   let p = store.team[battle.activePokeIdx]
   if (!p || p.hp <= 0 || battle.enemyPoke.hp <= 0) return
@@ -584,22 +581,26 @@ export function determineFirstTurn() {
     return
   }
 
-  let pSpd = getEffectiveSpeed(p)
-  let eSpd = getEffectiveSpeed(battle.enemyPoke)
-
-  if (pSpd > eSpd) {
-    battle.currentTurnOwner = 'player'
-  } else if (eSpd > pSpd) {
-    battle.currentTurnOwner = 'bot'
+  if (forcedOwner) {
+    battle.currentTurnOwner = forcedOwner
   } else {
-    battle.currentTurnOwner = Math.random() < 0.5 ? 'player' : 'bot'
+    let pSpd = getEffectiveSpeed(p)
+    let eSpd = getEffectiveSpeed(battle.enemyPoke)
+
+    if (pSpd > eSpd) {
+      battle.currentTurnOwner = 'player'
+    } else if (eSpd > pSpd) {
+      battle.currentTurnOwner = 'bot'
+    } else {
+      battle.currentTurnOwner = Math.random() < 0.5 ? 'player' : 'bot'
+    }
   }
 
   let firstName =
     battle.currentTurnOwner === 'player' ? `<b>${p.name}</b>` : `<b>${battle.enemyPoke.name} (Bot)</b>`
-  if (pSpd === eSpd) {
+  if (!forcedOwner && getEffectiveSpeed(p) === getEffectiveSpeed(battle.enemyPoke)) {
     battleLog(`🎲 Tốc độ ngang bằng — chọn ngẫu nhiên: ${firstName} đi trước!`)
-  } else {
+  } else if (!forcedOwner) {
     battleLog(`⚡ ${firstName} đi trước nhờ Tốc Độ!`)
   }
 
@@ -676,14 +677,11 @@ function executeBotTurn() {
 
     if (p.hp <= 0) {
       battleLog(`💀 <b>${p.name}</b> đã gục ngã!`)
-      if (!switchToNextAlivePokemon()) {
-        battleLog(`💀 Toàn bộ đội hình đã gục ngã! Chiến dịch thất bại.`)
+      if (!promptFaintSwitch()) {
         battle.isProcessingTurn = false
-        showCampaignResult(false)
         return
       }
       battle.isProcessingTurn = false
-      determineFirstTurn()
       return
     }
 
@@ -757,12 +755,58 @@ export function performInBattleSwitch(targetIdx) {
   determineFirstTurn()
 }
 
+// === XỬ LÝ HẠ GỤC — CHO CHỌN POKÉMON THAY THẾ ===
+
+// Khi Pokémon người chơi gục, mở modal cho phép chọn con thay thế
+export function promptFaintSwitch() {
+  for (let i = 0; i < 3; i++) {
+    let idx = battle.teamIndices[i]
+    if (idx !== null && store.team[idx] && store.team[idx].hp > 0 && idx !== battle.activePokeIdx) {
+      battle.awaitingFaintSwitch = true
+      battle.isProcessingTurn = false
+      battle.currentTurnOwner = 'player'
+      battleLog(`🐣 <b>${store.team[battle.activePokeIdx].name}</b> đã gục — chọn Pokémon tiếp theo ra sân!`)
+      return true
+    }
+  }
+  // Không còn Pokémon nào khác để thay thế
+  battleLog(`💀 Toàn bộ đội hình đã gục ngã! Chiến dịch thất bại.`)
+  battle.isProcessingTurn = false
+  showCampaignResult(false)
+  return false
+}
+
+// Xác nhận chọn Pokémon thay thế sau khi con trước đó gục
+export function confirmFaintSwitch(targetIdx) {
+  battle.awaitingFaintSwitch = false
+  let oldPoke = store.team[battle.activePokeIdx]
+  battle.activePokeIdx = targetIdx
+  let newPoke = store.team[targetIdx]
+
+  battleLog(`🔄 <b>${oldPoke.name}</b> đã gục, tung <b>${newPoke.name}</b> vào sân!`)
+  applyStartBattlePassive(newPoke)
+  determineFirstTurn('player')
+}
+
 // === XỬ LÝ HẠ GỤC QUÁI / CHIẾN THẮNG ===
 function handleEnemyDefeated() {
-  // Trận bắt wild: không thưởng gem/gold/exp — modal chọn Pokéball
-  // sẽ được UI mở qua watcher enemyPoke.hp <= 0.
+  // Trận bắt wild: Pokémon đã chết → không thể bắt, trận kết thúc.
   if (battle.mode === 'wild') {
-    battleLog(`💫 <b>${battle.enemyPoke.name}</b> đã gục ngã — hãy ném Pokéball để bắt!`)
+    battle.wildDied = true
+    let earnedExp = 15 + battle.enemyPoke.level * 5
+    let goldDrop = Math.floor(Math.random() * (battle.enemyPoke.level * 3 + 5)) + (5 + battle.enemyPoke.level * 3)
+    battle.rewards.exp += earnedExp
+    battle.rewards.gold = (battle.rewards.gold || 0) + goldDrop
+    store.gold += goldDrop
+    battleLog(`💀 <b>${battle.enemyPoke.name}</b> đã chết! Nhận +${earnedExp} EXP, +${goldDrop} 🪙`)
+    battle.teamIndices.forEach((idx) => {
+      if (idx !== null && store.team[idx]) gainExp(store.team[idx], earnedExp)
+    })
+    let playerLevels = addPlayerExp(earnedExp)
+    if (playerLevels > 0) {
+      battleLog(`⬆️ <b>Nâng cấp người chơi! Lv.${store.gameState.player.level}</b> 🎉`)
+    }
+    showCampaignResult(true)
     return
   }
 
@@ -797,7 +841,7 @@ function handleEnemyDefeated() {
   battle.waveIdx++
   if (battle.waveIdx < battle.currentEnemies.length) {
     battleLog(`➡️ Chuẩn bị bước vào Wave ${battle.waveIdx + 1}...`)
-    setTimeout(() => loadCampaignWave(battle.waveIdx), 1200)
+    setTimeout(() => loadCampaignWave(battle.waveIdx, 'bot'), 1200)
   } else {
     // Trận huấn luyện: không có campData (campaignId = null) → bỏ qua thưởng màn
     if (battle.mode !== 'training') {

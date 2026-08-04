@@ -2,13 +2,26 @@
 import { computed } from 'vue'
 import { settingsModalState, closeSettings } from './settingsModal.js'
 import { musicEnabled, setMusicEnabled, setMusicVolume } from '../../game/audio.js'
-import { store } from '../../game/store.js'
+import { store, resetProgress } from '../../game/store.js'
+import { showToast, confirmModal } from './toast.js'
 
 const musicOn = computed(() => musicEnabled())
 const volume = computed(() => Math.round((store.settings.musicVolume ?? 0.5) * 100))
 
 function onVolume(e) {
   setMusicVolume(Number(e.target.value) / 100)
+}
+
+async function onResetProgress() {
+  const ok = await confirmModal('Xóa toàn bộ tiến trình và bắt đầu lại từ đầu? Cài đặt nhạc sẽ được giữ nguyên.', {
+    title: '🔄 Reset Tiến Trình',
+    okText: 'Xóa tiến trình',
+    danger: true,
+  })
+  if (ok) {
+    resetProgress()
+    showToast('Đã reset tiến trình!', 'success')
+  }
 }
 </script>
 
@@ -39,16 +52,16 @@ function onVolume(e) {
           </div>
           <button
             @click="setMusicEnabled(!musicOn)"
-            class="relative h-6 w-12 rounded-full transition-colors duration-200"
+            class="relative flex h-6 w-12 items-center rounded-full transition-colors duration-200"
             :class="musicOn ? 'bg-emerald-500' : 'bg-slate-300'"
             :aria-pressed="musicOn"
             role="switch"
           >
-            <span
-              class="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200"
-              :class="musicOn ? 'translate-x-6' : 'translate-x-0.5'"
-            ></span>
-          </button>
+             <span
+               class="h-5 w-5 rounded-full bg-white shadow transition-transform duration-200"
+               :class="musicOn ? 'translate-x-6' : 'translate-x-0'"
+             ></span>
+           </button>
         </div>
 
         <!-- ÂM LƯỢNG -->
@@ -68,6 +81,13 @@ function onVolume(e) {
             class="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
           />
         </div>
+
+        <button
+          @click="onResetProgress"
+          class="mt-4 w-full rounded-xl border border-red-300 bg-red-500/10 py-2.5 text-sm font-bold text-red-600 transition hover:bg-red-500/20"
+        >
+          🔄 Reset Tiến Trình
+        </button>
 
         <p class="mt-4 text-[11px] leading-snug text-slate-400">
           Cài đặt được lưu tự động và giữ nguyên khi tải lại trang.

@@ -9,10 +9,10 @@ import {
   shiftSkillQueue,
 } from '../../game/battle.js'
 import { useBattleFx } from './useBattleFx.js'
-import { useSkill, performInBattleSwitch, continueAfterWildCapture } from '../../game/campaign.js'
-import { useGymSkill, performGymInBattleSwitch, GYM_DATA } from '../../game/gym.js'
-import { useStorySkill, performStoryInBattleSwitch } from '../../game/story.js'
-import { useTowerSkill, performTowerInBattleSwitch, continueTower, quitTower } from '../../game/tower.js'
+import { useSkill, performInBattleSwitch, continueAfterWildCapture, confirmFaintSwitch } from '../../game/campaign.js'
+import { useGymSkill, performGymInBattleSwitch, GYM_DATA, confirmGymFaintSwitch } from '../../game/gym.js'
+import { useStorySkill, performStoryInBattleSwitch, confirmStoryFaintSwitch } from '../../game/story.js'
+import { useTowerSkill, performTowerInBattleSwitch, continueTower, quitTower, confirmTowerFaintSwitch } from '../../game/tower.js'
 import { getEffectLabel } from '../../game/data.js'
 import {
   getPokeballCatalog,
@@ -175,12 +175,23 @@ function openSwitch() {
   switchOpen.value = true
 }
 
+function onSwitchBackdrop() {
+  if (!battle.awaitingFaintSwitch) switchOpen.value = false
+}
+
 function onSwitch(idx) {
+  if (battle.awaitingFaintSwitch) {
+    if (battle.mode === 'gym') confirmGymFaintSwitch(idx)
+    else if (battle.mode === 'story') confirmStoryFaintSwitch(idx)
+    else if (battle.mode === 'tower') confirmTowerFaintSwitch(idx)
+    else confirmFaintSwitch(idx)
+    return
+  }
   switchOpen.value = false
   if (battle.mode === 'gym') performGymInBattleSwitch(idx)
   else if (battle.mode === 'story') performStoryInBattleSwitch(idx)
   else if (battle.mode === 'tower') performTowerInBattleSwitch(idx)
-  else performInBattleSwitch(idx) // campaign, wild
+  else performInBattleSwitch(idx)
 }
 
 // --- KẾT QUẢ MODAL ---
@@ -285,13 +296,24 @@ const resultBody = computed(() => {
       pokedexHint: false,
     }
   }
+  // Wild Pokémon đã chết — không thể bắt
+  if (battle.mode === 'wild' && battle.wildDied) {
+    let items = [
+      `Bạn đã đánh gục ${battle.enemyPoke?.name || 'Pokémon'}.`,
+      'Nó đã chết vĩnh viễn và không thể bắt được nữa.',
+      `⭐ Kinh Nghiệm: +${battle.rewards.exp || 0} EXP`,
+      `🪙 Vàng: +${battle.rewards.gold || 0} Vàng`,
+      '💡 Làm yếu Pokémon (giữ HP > 0) để bắt, đừng đánh chết nó!',
+    ]
+    return { title: '💀 Pokémon Đã Chết!', items, pokedexHint: false }
+  }
   if (battle.mode === 'wild') {
     return {
       title: '💀 ĐỘI HÌNH GỤC NGÃ!',
       items: [
         'Toàn bộ đội hình đã gục ngã trước Pokémon hoang dã!',
         '🌿 Pokémon hoang dã đã thoát khỏi khu vực...',
-        '💡 Hãy chọn đội hình mạnh hơn hoặc hạ gục nó để tăng tỷ lệ bắt.',
+        '💡 Làm yếu Pokémon (giữ HP > 0) để tăng tỷ lệ bắt — đừng đánh chết nó!',
       ],
       pokedexHint: false,
     }
@@ -322,20 +344,13 @@ const isTowerWin = computed(() => battle.resultOpen && battle.resultWin && battl
 
 const isGymPlayer = computed(() => battle.mode === 'gym')
 
-// Mở modal chọn Pokéball (nút Bắt trong trận hoặc khi wild Pokémon gục ngã)
+// Mở modal chọn Pokéball (chỉ khi Pokémon còn sống)
 function openPokeballModal() {
   if (battle.mode !== 'wild') return
+  if (!battle.enemyPoke || battle.enemyPoke.hp <= 0) return
   pokeballCatalog.value = getPokeballCatalog()
   pokeballModalOpen.value = true
 }
-
-// Khi wild Pokémon bị hạ gục (hp <= 0) -> tự mở modal chọn Pokéball
-watch(() => battle.enemyPoke?.hp, (newHp) => {
-  if (battle.mode === 'wild' && battle.enemyPoke && newHp <= 0 && !pokeballModalOpen.value) {
-    pokeballCatalog.value = getPokeballCatalog()
-    pokeballModalOpen.value = true
-  }
-})
 
 // Hàm ném Pokéball
 function onSelectPokeball(ballId) {
@@ -360,14 +375,7 @@ function onSelectPokeball(ballId) {
   // Bắt thất bại — mất bóng, trận đấu tiếp tục
   pokeballModalOpen.value = false
   showToast(result.message, 'warning')
-  if (battle.enemyPoke && battle.enemyPoke.hp > 0) {
-    // Pokémon còn sống → đến lượt nó phản công
-    continueAfterWildCapture()
-  } else {
-    // Pokémon đã gục không thể phản công → thoát khỏi khu vực
-    showToast(`🌿 ${battle.enemyPoke.name} quá yếu nên đã thoát khỏi khu vực!`, 'info')
-    setTimeout(() => emit('close-result'), 1500)
-  }
+  continueAfterWildCapture()
 }
 
 // Đóng modal (không chạy trốn)
@@ -632,13 +640,15 @@ function runAway() {
       </div>
     </div>
 
-    <!-- SWITCH MODAL -->
+    <!-- SWITCH MODAL (bình thường hoặc bắt buộc sau khi Pokémon gục) -->
     <Teleport to="body">
-      <div v-if="switchOpen" class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm" @click.self="switchOpen = false">
+      <div v-if="switchOpen || battle.awaitingFaintSwitch" class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm" @click.self="onSwitchBackdrop">
         <div class="flex max-h-[85vh] w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
           <div class="flex items-center justify-between border-b border-slate-200 p-4">
-            <h3 class="text-base font-bold text-sky-600">🔄 Đổi Pokémon Trong Trận</h3>
-            <button class="text-2xl leading-none text-slate-400 hover:text-slate-600" @click="switchOpen = false">&times;</button>
+            <h3 class="text-base font-bold text-sky-600">
+              {{ battle.awaitingFaintSwitch ? '💀 Chọn Pokémon Thay Thế' : '🔄 Đổi Pokémon Trong Trận' }}
+            </h3>
+            <button v-if="!battle.awaitingFaintSwitch" class="text-2xl leading-none text-slate-400 hover:text-slate-600" @click="switchOpen = false">&times;</button>
           </div>
           <div class="flex-1 space-y-2 overflow-y-auto p-4">
             <div v-if="switchOptions.length === 0" class="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-red-500">
@@ -660,7 +670,7 @@ function runAway() {
               <small class="text-slate-500">HP: {{ opt.hp }}/{{ opt.maxHp }}</small>
             </button>
           </div>
-          <button @click="switchOpen = false" class="bg-slate-100 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-200">Đóng</button>
+          <button v-if="!battle.awaitingFaintSwitch" @click="switchOpen = false" class="bg-slate-100 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-200">Đóng</button>
         </div>
       </div>
     </Teleport>

@@ -47,6 +47,7 @@ function defaultState() {
     campaignCleared: [],
     storyCleared: [],
     towerBestFloor: 0,
+    quests: {},
     daily: {
       lastCheckIn: '',
       checkInStreak: 0,
@@ -96,6 +97,7 @@ export function saveGameState() {
       campaignCleared: store.campaignCleared,
       storyCleared: store.storyCleared,
       towerBestFloor: store.towerBestFloor,
+      quests: store.quests,
       daily: store.daily,
       pokedex: store.gameState.pokedex,
       searchQuery: store.searchQuery,
@@ -163,6 +165,7 @@ export function loadGameState() {
     store.campaignCleared = Array.isArray(data.campaignCleared) ? data.campaignCleared : []
     store.storyCleared = Array.isArray(data.storyCleared) ? data.storyCleared : []
     store.towerBestFloor = Number.isFinite(data.towerBestFloor) ? data.towerBestFloor : 0
+    if (data.quests) store.quests = data.quests
     if (data.daily) store.daily = { ...store.daily, ...data.daily }
     if (data.searchQuery) store.searchQuery = data.searchQuery
     if (data.sortBy) store.sortBy = data.sortBy
@@ -216,6 +219,14 @@ export function loadGameState() {
 export function resetGameState() {
   localStorage.removeItem(SAVE_KEY)
   Object.assign(store, defaultState())
+  saveGameState()
+}
+
+export function resetProgress() {
+  const savedSettings = { ...store.settings }
+  localStorage.removeItem(SAVE_KEY)
+  Object.assign(store, defaultState())
+  store.settings = savedSettings
   saveGameState()
 }
 

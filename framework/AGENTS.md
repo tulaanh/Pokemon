@@ -28,6 +28,9 @@ Pokémon-style gacha / merge / battle browser game with all UI text in Vietnames
 - Never use legacy DOM helpers (`document.getElementById`, `innerHTML`, etc.) in the Vue app — use reactivity.
 - Keep new UI text and comments in Vietnamese to match the codebase.
 - Don't modify anything under `vanilla/` (frozen legacy).
+- **NPC layer convention**: NPCs with dialogue/quests are placed in a Tiled objectgroup named `npc` (not `doors`). Objects in `npc` layer are read by `worldScene.buildNpcPoints()` as interact points `type:'npc'`. Objects in `doors` layer with `*_npc` suffix are also NPCs (store/gacha clerks). Objects in `doors` with `to`/`toSpawn` are doors (io transitions).
+- **Quest system**: `game/quests.js` defines `NPCS` registry and `QUESTS` definitions. Quest state lives in `store.quests` (questId → `{status, progress}`). Progress hooks are in `capture.js` (wildCatch). Quest dialogue is rendered by `components/map/NpcDialogue.vue`.
+- **Interaction panel**: When near an `io` tile, `WorldMap.vue` shows `InteractionMenu` (confirm dialog: Đi vào / Không). When near an `npc` tile, it shows an NPC menu (Nói chuyện / Nhiệm vụ / functional). Both use `interactMenuOpen` / `npcDialogueOpen` refs which lock the Phaser scene via `syncSceneLock()`.
 - Branch `develop` currently has a large uncommitted refactor in progress; don't commit unless asked.
 
 ## Environment

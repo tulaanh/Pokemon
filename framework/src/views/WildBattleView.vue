@@ -98,7 +98,7 @@ function slotPoke(i) {
             <small class="text-slate-500">HP: {{ Math.max(0, wildPoke.hp) }}/{{ wildPoke.maxHp }} | ATK: {{ wildPoke.atk }} | SPD: {{ wildPoke.speed }}</small>
           </div>
         </div>
-        <p class="mt-2 text-xs font-semibold text-red-600">Hạ gục Pokémon hoang dã để tăng tỷ lệ bắt thành công, rồi dùng Pokéball!</p>
+        <p class="mt-2 text-xs font-semibold text-red-600">Làm yếu Pokémon (đừng đánh chết) để bắt, hoặc đánh chết để nhận EXP & Vàng! Nếu đánh chết, nó sẽ chết vĩnh viễn.</p>
       </div>
 
       <!-- TEAM SLOTS -->

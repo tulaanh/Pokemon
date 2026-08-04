@@ -8,6 +8,7 @@ import { POKEMON_SPECIES, RARITIES, INVENTORY_LIMIT } from './data.js'
 import { buildNewPokemon } from './gacha.js'
 import { store, addPokemonToInventory, saveGameState } from './store.js'
 import { POKEBALLS } from './shop.js'
+import { addQuestProgress } from './quests.js'
 
 export const DEFAULT_ENCOUNTERS = {
   enabled: true,
@@ -154,6 +155,8 @@ export function attemptCapture(pokemon, ballId) {
     store.inventory[ball.id]++
     return { ok: false, success: false, message: 'Không thể thêm Pokémon vào đội hình!' }
   }
+
+  addQuestProgress('wild_catcher', 1)
 
   if (!store.gameState.pokedex.includes(captured.name)) {
     store.gameState.pokedex.push(captured.name)
