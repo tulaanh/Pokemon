@@ -435,6 +435,12 @@ function openNpcMenu(pt) {
   // Store/gacha clerk: thêm chức năng mua sắm
   if (npcId === 'store_npc') choices.push({ id: 'shop', label: '🛒 Cửa Hàng', icon: '🛒' })
   if (npcId === 'gacha_npc') choices.push({ id: 'gacha', label: '🎁 Gacha', icon: '🎁' })
+  // James - Đấu trường trực tuyến
+  if (npcId === 'James') {
+    choices.push({ id: 'pvp_lobby', label: '⚔️ Tìm Trận PvP', icon: '⚔️' })
+    choices.push({ id: 'pvp_ranking', label: '🏆 Bảng Xếp Hạng', icon: '🏆' })
+    choices.push({ id: 'pvp_history', label: '📜 Lịch Sử Đấu', icon: '📜' })
+  }
   interactMenuOpen.value = true
   interactMenu.value = {
     title: `${npc?.icon || '👤'} ${npc?.name || 'NPC'}`,
@@ -467,6 +473,22 @@ function onNpcMenuSelect(choiceId, npcId) {
   if (choiceId === 'gacha') {
     if (gateOnboarding()) return
     emit('open', 'gacha')
+    return
+  }
+  // James actions
+  if (choiceId === 'pvp_lobby') {
+    if (gateOnboarding()) return
+    emit('open', 'pvp_lobby')
+    return
+  }
+  if (choiceId === 'pvp_ranking') {
+    if (gateOnboarding()) return
+    emit('open', 'pvp_ranking')
+    return
+  }
+  if (choiceId === 'pvp_history') {
+    if (gateOnboarding()) return
+    emit('open', 'pvp_history')
     return
   }
 }

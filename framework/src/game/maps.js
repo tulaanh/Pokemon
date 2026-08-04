@@ -74,6 +74,9 @@ export const MAPS = {
       '47,47': { to: 'store', toSpawn: STORE_SPAWN },
       // Cửa hàng Gacha (ô io 54,46 — gacha_door trong objectgroup doors của home_town.json) → vào cửa hàng Gacha
       '54,46': { to: 'gacha_store', toSpawn: 'gacha_store_door' },
+      // Đấu trường trực tuyến (ô io 56,46/57,46) → vào Arena PvP
+      '56,46': { to: 'arena', toSpawn: { x: 160, y: 160 } },
+      '57,46': { to: 'arena', toSpawn: { x: 160, y: 160 } },
     },
     // Cấu hình Pokémon hoang dã (Wild Encounter) — bộ đếm: cứ mỗi intervalMs
     // lại xuất hiện 1 Pokémon ngẫu nhiên; nếu không tương tác sẽ biến mất sau despawnMs.
@@ -102,6 +105,7 @@ export const MAPS = {
       { id: 'store_door', name: 'Cửa hàng', type: 'location', x: 752, y: 752, icon: '🛒' },
       { id: 'fire_gym', name: 'Phòng Gym Lửa', type: 'location', x: 424, y: 736, icon: '🔥' },
       { id: 'gacha_door', name: 'Cửa hàng Gacha', type: 'location', x: 872, y: 744, icon: '🎁' },
+      { id: 'arena_door', name: 'Đấu Trường Trực Tuyến', type: 'location', x: 904, y: 736, icon: '🌐' },
     ],
   },
   house: {
@@ -221,6 +225,26 @@ export const MAPS = {
     spots: [
       { id: 'gacha_npc', name: 'Máy Gacha', type: 'location', x: 248, y: 104, icon: '🎁' },
       { id: 'door_out', name: 'Cửa ra thị trấn', type: 'location', x: 240, y: 392, icon: '🚪' },
+    ],
+  },
+  arena: {
+    id: 'arena',
+    name: 'Đấu Trường Trực Tuyến',
+    kind: 'tiled',
+    src: '/images/map/arena/arena.json',
+    tileSize: 16,
+    zoom: 2,
+    playerScale: 1,
+    width: 320,
+    height: 320,
+    spawn: { x: 160, y: 160 },
+    transitions: {
+      '9,19': { to: TOWN_ID, toSpawn: TOWN_HOUSE_DOOR_SPAWN },
+      '10,19': { to: TOWN_ID, toSpawn: TOWN_HOUSE_DOOR_SPAWN },
+    },
+    spots: [
+      { id: 'james_npc', name: 'James', type: 'location', x: 160, y: 80, icon: '🌐' },
+      { id: 'door_out', name: 'Cửa ra thị trấn', type: 'location', x: 160, y: 304, icon: '🚪' },
     ],
   },
 }

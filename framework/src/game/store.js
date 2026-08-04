@@ -56,6 +56,17 @@ function defaultState() {
       quests: { rolls: 0, wins: 0, sells: 0, candies: 0 },
       questClaimed: {},
     },
+    pvp: {
+      elo: 1000,
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      streak: 0,
+      bestStreak: 0,
+      history: [],
+      seasonRewards: {},
+      lastSeasonElo: 1000,
+    },
     searchQuery: '',
     sortBy: 'default',
     activePokeIdx: 0,
@@ -99,6 +110,7 @@ export function saveGameState() {
       towerBestFloor: store.towerBestFloor,
       quests: store.quests,
       daily: store.daily,
+      pvp: store.pvp,
       pokedex: store.gameState.pokedex,
       searchQuery: store.searchQuery,
       sortBy: store.sortBy,
@@ -167,6 +179,7 @@ export function loadGameState() {
     store.towerBestFloor = Number.isFinite(data.towerBestFloor) ? data.towerBestFloor : 0
     if (data.quests) store.quests = data.quests
     if (data.daily) store.daily = { ...store.daily, ...data.daily }
+    if (data.pvp) store.pvp = { ...store.pvp, ...data.pvp }
     if (data.searchQuery) store.searchQuery = data.searchQuery
     if (data.sortBy) store.sortBy = data.sortBy
     if (data.activePokeIdx !== undefined) store.activePokeIdx = data.activePokeIdx

@@ -16,6 +16,10 @@ import TowerView from './views/TowerView.vue'
 import DailyView from './views/DailyView.vue'
 import TrainingView from './views/TrainingView.vue'
 import WildBattleView from './views/WildBattleView.vue'
+import PvpLobbyView from './views/PvpLobbyView.vue'
+import PvpRankingView from './views/PvpRankingView.vue'
+import PvpHistoryView from './views/PvpHistoryView.vue'
+import PvpBattleView from './views/PvpBattleView.vue'
 import { getOnboardingStage, STORY_STAGES } from './game/story.js'
 import Toast from './components/ui/Toast.vue'
 import ConfirmModal from './components/ui/ConfirmModal.vue'
@@ -45,6 +49,17 @@ const categories = [
       { id: 'story', icon: '📖', label: 'Story' },
       { id: 'gym', icon: '🏟️', label: 'Phòng Gym' },
       { id: 'tower', icon: '🗼', label: 'Leo Tháp' },
+    ],
+  },
+  {
+    id: 'pvp',
+    icon: '🌐',
+    label: 'Đấu Trường Trực Tuyến',
+    desc: 'PvP Multiplayer, xếp hạng và lịch sử',
+    modes: [
+      { id: 'pvp_lobby', icon: '⚔️', label: 'Tìm Trận' },
+      { id: 'pvp_ranking', icon: '🏆', label: 'Bảng Xếp Hạng' },
+      { id: 'pvp_history', icon: '📜', label: 'Lịch Sử Đấu' },
     ],
   },
   {
@@ -81,9 +96,14 @@ const MODE_VIEWS = {
   daily: DailyView,
   training: TrainingView,
   wild: WildBattleView,
+  pvp_lobby: PvpLobbyView,
+  pvp_ranking: PvpRankingView,
+  pvp_history: PvpHistoryView,
+  pvp_battle: PvpBattleView,
 }
 
 const activeMode = ref(null)
+const activePayload = ref(null)
 
 const activeModeInfo = computed(() => {
   for (const cat of categories) {
@@ -110,12 +130,13 @@ function handleOpenMode(mode, ...args) {
       const { battle } = await import('./game/battle.js')
       battle.wildPoke = args[0]
     }
+    activePayload.value = args[0] || null
     activeMode.value = mode
   }, { label: 'Đang chuyển cảnh...', minDuration: 300 })
 }
 
 // --- NHẠC NỀN THEO NGỮ CẢNH ---
-const BATTLE_MODES = ['campaign', 'story', 'gym', 'tower', 'training']
+const BATTLE_MODES = ['campaign', 'story', 'gym', 'tower', 'training', 'pvp_lobby', 'pvp_battle']
 
 function trackForMode(mode) {
   if (mode === 'gacha') return 'gacha'
@@ -197,7 +218,7 @@ function kickStart() {
         <main class="mx-auto max-w-6xl px-4 py-6">
           <div class="mb-4 flex items-center gap-3">
             <button
-              @click="activeMode = null"
+              @click="activeMode = null; activePayload = null"
               class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-100"
             >
               🏠 Trở Về
@@ -208,7 +229,14 @@ function kickStart() {
             </div>
           </div>
 
-          <component :is="MODE_VIEWS[activeMode]" v-if="MODE_VIEWS[activeMode]" @back="activeMode = null" />
+          <component
+            :is="MODE_VIEWS[activeMode]"
+            v-if="MODE_VIEWS[activeMode]"
+            :payload="activePayload"
+            @open="handleOpenMode"
+            @back="activeMode = null; activePayload = null"
+            @close="activeMode = null; activePayload = null"
+          />
         </main>
       </template>
     </div>

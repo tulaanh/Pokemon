@@ -22,6 +22,20 @@ export const NPCS = {
     ],
     questId: 'wild_catcher',
   },
+  James: {
+    id: 'James',
+    name: 'James',
+    icon: '🌐',
+    smallTalk: [
+      'Chào bạn! Tôi là James, quản lý Đấu Trường Trực Tuyến.',
+      'Tại đây bạn có thể đấu PvP với các huấn luyện viên khác trên toàn thế giới.',
+      'Hãy chọn đội hình 3 Pokémon tốt nhất và vào hàng đợi tìm trận nhé!',
+      'Xếp hạng ELO của bạn sẽ tăng/giảm tùy theo kết quả trận đấu.',
+      'Chúc bạn có những trận đấu gay cấn! ⚔️',
+    ],
+    questId: null,
+    actions: ['pvp_lobby', 'pvp_ranking', 'pvp_history'],
+  },
 }
 
 // Định nghĩa nhiệm vụ
