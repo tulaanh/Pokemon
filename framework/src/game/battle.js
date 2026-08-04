@@ -16,6 +16,7 @@ export const battle = reactive({
   mode: null, // 'campaign' | 'gym' | 'story' | 'tower' | 'wild'
   activePokeIdx: null,
   teamIndices: [null, null, null],
+  wildPoke: null,
   enemyPoke: null,
   enemyTeam: [],
   gymActiveEnemyIdx: 0,
@@ -570,45 +571,6 @@ export function showBattleResult(win, onSaveCb) {
   battle.resultOpen = true
   battle.resultWin = win
   saveGameState()
-}
-
-// Bắt đầu trận chiến với Pokémon hoang dã
-export function startWildBattle(wildPokemon) {
-  if (!wildPokemon) return false
-
-  battle.isBattling = true
-  battle.mode = 'wild'
-  battle.activePokeIdx = null
-  battle.teamIndices = [null, null, null]
-  battle.enemyPoke = wildPokemon
-  battle.enemyTeam = []
-  battle.currentTurnOwner = 'player'
-  battle.extraTurnOwner = null
-  battle.isProcessingTurn = false
-  battle.selectingSlot = null
-  battle.waveIdx = 0
-  battle.campaignId = null
-  battle.storySceneId = null
-  battle.towerFloor = null
-  battle.currentEnemies = []
-  battle.gymType = null
-  battle.rewards = { gems: 0, exp: 0, gold: 0, candy: 0 }
-  battle.battleTitle = `🌿 Gặp ${wildPokemon.name} Hoang Dã`
-  battle.skillQueue = []
-  clearBattleLog()
-  clearFx()
-
-  healBattleTeam()
-
-  if (!switchToNextAlivePokemon()) return false
-
-  // Chỉ có 1 wave cho wild battle
-  battle.waveIndicator = `Wild Pokémon`
-
-  battleLog(`🌿 Bạn gặp phải <b>${wildPokemon.name}</b> Lv.${wildPokemon.level} hoang dã!`)
-  checkStartBattlePassives()
-  determineFirstTurn()
-  return true
 }
 
 // Danh sách Pokémon còn sống khác để đổi trong trận

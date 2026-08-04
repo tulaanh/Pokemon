@@ -75,17 +75,21 @@ export const MAPS = {
       // Cửa hàng Gacha (ô io 54,46 — gacha_door trong objectgroup doors của home_town.json) → vào cửa hàng Gacha
       '54,46': { to: 'gacha_store', toSpawn: 'gacha_store_door' },
     },
-    // Cấu hình Pokémon hoang dã (Wild Encounter)
+    // Cấu hình Pokémon hoang dã (Wild Encounter) — bộ đếm: cứ mỗi intervalMs
+    // lại xuất hiện 1 Pokémon ngẫu nhiên; nếu không tương tác sẽ biến mất sau despawnMs.
     encounters: {
       enabled: true,
-      intervalMs: 9000,
-      chance: 0.25,
+      intervalMs: 30000,
+      despawnMs: 60000,
       maxActive: 1,
       cooldownMs: 12000,
       pool: [
-        { species: 'Pidgey', minLevel: 1, maxLevel: 5, weight: 40 },
-        { species: 'Rattata', minLevel: 1, maxLevel: 5, weight: 35 },
-        { species: 'Caterpie', minLevel: 1, maxLevel: 5, weight: 25 },
+        { species: 'Pikachu', weight: 30 },
+        { species: 'Eevee', weight: 25 },
+        { species: 'Vulpix', weight: 15 },
+        { species: 'Growlithe', weight: 15 },
+        { species: 'Magikarp', weight: 10 },
+        { species: 'Larvitar', weight: 5 },
       ],
     },
     // Điểm định vị trên minimap (tọa độ tâm, px thế giới — tile 16px).

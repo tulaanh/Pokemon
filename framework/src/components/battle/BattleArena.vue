@@ -9,7 +9,7 @@ import {
   shiftSkillQueue,
 } from '../../game/battle.js'
 import { useBattleFx } from './useBattleFx.js'
-import { useSkill, performInBattleSwitch } from '../../game/campaign.js'
+import { useSkill, performInBattleSwitch, continueAfterWildCapture } from '../../game/campaign.js'
 import { useGymSkill, performGymInBattleSwitch, GYM_DATA } from '../../game/gym.js'
 import { useStorySkill, performStoryInBattleSwitch } from '../../game/story.js'
 import { useTowerSkill, performTowerInBattleSwitch, continueTower, quitTower } from '../../game/tower.js'
@@ -35,7 +35,6 @@ const wildPokemon = ref(null)
 // Pokéball selection modal state
 const pokeballModalOpen = ref(false)
 const pokeballCatalog = ref([])
-const lastCaptureResult = ref(null)
 
 const playerPoke = computed(() => getActivePlayerPoke())
 const switchOpen = ref(false)
@@ -286,6 +285,17 @@ const resultBody = computed(() => {
       pokedexHint: false,
     }
   }
+  if (battle.mode === 'wild') {
+    return {
+      title: '💀 ĐỘI HÌNH GỤC NGÃ!',
+      items: [
+        'Toàn bộ đội hình đã gục ngã trước Pokémon hoang dã!',
+        '🌿 Pokémon hoang dã đã thoát khỏi khu vực...',
+        '💡 Hãy chọn đội hình mạnh hơn hoặc hạ gục nó để tăng tỷ lệ bắt.',
+      ],
+      pokedexHint: false,
+    }
+  }
   return {
     title: '💀 THẤT BẠI!',
     items: [
@@ -312,15 +322,14 @@ const isTowerWin = computed(() => battle.resultOpen && battle.resultWin && battl
 
 const isGymPlayer = computed(() => battle.mode === 'gym')
 
-// Theo dõi mode wild để mở modal chọn Pokéball
-watch(() => battle.mode, (newMode) => {
-  if (newMode === 'wild') {
-    pokeballCatalog.value = getPokeballCatalog()
-    pokeballModalOpen.value = true
-  }
-})
+// Mở modal chọn Pokéball (nút Bắt trong trận hoặc khi wild Pokémon gục ngã)
+function openPokeballModal() {
+  if (battle.mode !== 'wild') return
+  pokeballCatalog.value = getPokeballCatalog()
+  pokeballModalOpen.value = true
+}
 
-// Khi wild Pokémon bị hạ gục (hp <= 0) -> mở modal chọn Pokéball
+// Khi wild Pokémon bị hạ gục (hp <= 0) -> tự mở modal chọn Pokéball
 watch(() => battle.enemyPoke?.hp, (newHp) => {
   if (battle.mode === 'wild' && battle.enemyPoke && newHp <= 0 && !pokeballModalOpen.value) {
     pokeballCatalog.value = getPokeballCatalog()
@@ -328,42 +337,49 @@ watch(() => battle.enemyPoke?.hp, (newHp) => {
   }
 })
 
-// Hàm chọn Pokéball
+// Hàm ném Pokéball
 function onSelectPokeball(ballId) {
   const result = attemptCapture(battle.enemyPoke, ballId)
-  lastCaptureResult.value = result
-  pokeballModalOpen.value = false
-  
-  if (result.ok) {
-    if (result.success) {
-      // Bắt thành công
-      showToast(result.message, 'success')
-      // Đóng battle sau khi bắt thành công
-      setTimeout(() => {
-        battle.resultOpen = false
-        emit('close-result')
-      }, 2000)
-    } else {
-      // Bắt thất bại - Pokémon thoát
-      showToast(result.message, 'warning')
-      // Kết thúc battle (Pokémon hoang dã bỏ chạy)
-      setTimeout(() => {
-        battle.resultOpen = false
-        emit('close-result')
-      }, 1500)
-    }
-  } else {
+
+  if (!result.ok) {
+    // Lỗi (không còn bóng / đội hình đầy...) — giữ modal mở để chọn bóng khác
     showToast(result.message, 'error')
+    return
+  }
+
+  pokeballCatalog.value = getPokeballCatalog()
+
+  if (result.success) {
+    // Bắt thành công
+    pokeballModalOpen.value = false
+    showToast(result.message, 'success')
+    setTimeout(() => emit('close-result'), 2000)
+    return
+  }
+
+  // Bắt thất bại — mất bóng, trận đấu tiếp tục
+  pokeballModalOpen.value = false
+  showToast(result.message, 'warning')
+  if (battle.enemyPoke && battle.enemyPoke.hp > 0) {
+    // Pokémon còn sống → đến lượt nó phản công
+    continueAfterWildCapture()
+  } else {
+    // Pokémon đã gục không thể phản công → thoát khỏi khu vực
+    showToast(`🌿 ${battle.enemyPoke.name} quá yếu nên đã thoát khỏi khu vực!`, 'info')
+    setTimeout(() => emit('close-result'), 1500)
   }
 }
 
+// Đóng modal (không chạy trốn)
 function closePokeballModal() {
   pokeballModalOpen.value = false
-  // Nếu không chọn bóng thì coi như bỏ chạy
-  if (battle.mode === 'wild' && !lastCaptureResult.value) {
-    battle.resultOpen = false
-    emit('close-result')
-  }
+}
+
+// Bỏ chạy — kết thúc trận bắt
+function runAway() {
+  pokeballModalOpen.value = false
+  battle.resultOpen = false
+  emit('close-result')
 }
 </script>
 
@@ -585,8 +601,16 @@ function closePokeballModal() {
         </template>
       </div>
 
-      <!-- SWITCH -->
-      <div class="mt-3 flex justify-end">
+      <!-- SWITCH + BẮT POKEMON -->
+      <div class="mt-3 flex flex-wrap justify-end gap-2">
+        <button
+          v-if="battle.mode === 'wild'"
+          @click="openPokeballModal"
+          :disabled="battle.currentTurnOwner !== 'player' || battle.isProcessingTurn"
+          class="rounded-lg border border-red-300 bg-red-100 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          🔴 Bắt Pokémon
+        </button>
         <button
           @click="openSwitch"
           :disabled="battle.currentTurnOwner !== 'player' || battle.isProcessingTurn"
@@ -696,7 +720,7 @@ function closePokeballModal() {
               class="relative rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-amber-400 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <div class="flex items-center gap-3">
-                <span class="text-3xl">{{ ball.emoji }}</span>
+                <img :src="ball.icon" :alt="ball.name" class="h-10 w-10 shrink-0 object-contain" />
                 <div class="flex-1">
                   <div class="font-bold text-slate-800">{{ ball.name }}</div>
                   <div class="text-xs text-slate-500">{{ ball.description }}</div>
@@ -712,10 +736,10 @@ function closePokeballModal() {
             </button>
           </div>
           <button
-            @click="closePokeballModal"
+            @click="runAway"
             class="w-full rounded-lg border border-slate-300 bg-slate-100 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-200"
           >
-            Bỏ chạy
+            🏃 Bỏ Chạy
           </button>
         </div>
       </div>

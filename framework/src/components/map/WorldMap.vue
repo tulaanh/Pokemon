@@ -112,6 +112,18 @@ const mapLocations = computed(() =>
 // Mục tiêu nhiệm vụ (spot type 'quest') — hiện chấm đỏ nhấp nháy, sẵn sàng cho tính năng định vị quest
 const questLocations = computed(() => mapSpots.value.filter((s) => s.type === 'quest'))
 
+// Pokémon hoang dã đang xuất hiện — { x, y, mapId } (px thế giới, tâm tile)
+const wildDot = ref(null)
+
+// Bộ đếm encounter — { active, remainingMs, mapId } từ scene, cập nhật ~2 lần/giây
+const encounterTick = ref(null)
+const encounterCountdown = computed(() => {
+  const t = encounterTick.value
+  if (!t || t.mapId !== currentMapId.value) return null
+  return t
+})
+const encounterSeconds = computed(() => Math.max(0, Math.ceil((encounterCountdown.value?.remainingMs ?? 0) / 1000)))
+
 // Minimap scale (minimap 192×120)
 const MM_W = 192
 const MM_H = 120
@@ -265,6 +277,7 @@ async function switchMap(mapId, spawnRef) {
   beginScreenTransition({ label: 'Đang chuyển bản đồ...', minDuration: 300 })
   await getMapTilesets(mapId)
   const spawn = resolveSpawn(mapId, spawnRef)
+  const nextMap = getMap(mapId)
   store.prevMapPos = {
     mapId: currentMapId.value,
     x: Math.round(playerX.value),
@@ -275,7 +288,12 @@ async function switchMap(mapId, spawnRef) {
   store.worldPos.x = Math.round(spawn.x)
   store.worldPos.y = Math.round(spawn.y)
   selectedLocation.value = null
-  setWorldRuntime({ onboardingTarget: getOnboardingTarget(mapId) })
+  wildDot.value = null
+  encounterTick.value = null
+  setWorldRuntime({
+    onboardingTarget: getOnboardingTarget(mapId),
+    encounters: nextMap.encounters || { enabled: false },
+  })
   game?.scene.getScene('WorldScene').scene.restart({ mapId, startPos: { x: spawn.x, y: spawn.y } })
 }
 
@@ -404,6 +422,24 @@ async function startGame() {
         onLoadProgress: (v) => setScreenProgress(v * 100),
         onMapChange,
         onTileInteract,
+        onWildSpawn: (data) => {
+          // Cập nhật chấm đỏ minimap tại vị trí Pokémon hoang dã xuất hiện
+          wildDot.value = data
+        },
+        onWildClear: () => {
+          wildDot.value = null
+        },
+        onEncounterTick: (tick) => {
+          // Đồng hồ đếm ngược tới lần xuất hiện tiếp theo / thời gian còn lại của Pokémon
+          encounterTick.value = tick
+          // Tự đồng bộ chấm đỏ minimap: Pokémon xuất hiện → cập nhật vị trí,
+          // hết thời gian tồn tại → xoá (đảm bảo minimap luôn khớp dù lỡ onWildSpawn)
+          if (tick.active && tick.x != null) {
+            wildDot.value = { x: tick.x, y: tick.y, mapId: tick.mapId }
+          } else if (!tick.active) {
+            wildDot.value = null
+          }
+        },
         onWildEncounter: (pokemon) => {
           // Mở BattleArena với mode wild + dữ liệu wild Pokémon
           emit('open', 'wild', pokemon)
@@ -478,6 +514,8 @@ watch(
     playerY.value = store.worldPos.y ?? map.spawn.y
     selectedLocation.value = null
     inRangeLocId.value = null
+    wildDot.value = null
+    encounterTick.value = null
     setWorldRuntime({
       onboardingTarget: getOnboardingTarget(newMapId),
       encounters: map.encounters || { enabled: false },
@@ -639,6 +677,15 @@ watch(onboardingStage, () => {
             top: spotCenterY(spot) * mmScaleY - 3 + 'px',
           }"
         />
+        <!-- Pokémon hoang dã xuất hiện ngẫu nhiên (chấm đỏ nổi bật, viền trắng) -->
+        <div
+          v-if="wildDot && wildDot.mapId === currentMapId"
+          class="absolute h-2 w-2 rounded-full bg-red-600 ring-2 ring-white animate-pulse"
+          :style="{
+            left: wildDot.x * mmScaleX - 4 + 'px',
+            top: wildDot.y * mmScaleY - 4 + 'px',
+          }"
+        />
         <!-- Người chơi -->
         <div
           class="absolute h-2 w-2 rounded-full border border-white bg-sky-500 shadow"
@@ -651,6 +698,22 @@ watch(onboardingStage, () => {
       <div class="absolute left-1 top-1 rounded bg-sky-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white">
         📍 Bản đồ
       </div>
+    </div>
+
+    <!-- BỘ ĐẾM POKÉMON HOANG DÃ (30s xuất hiện / 60s biến mất) -->
+    <div
+      v-if="encounterCountdown"
+      class="absolute bottom-40 right-3 rounded-lg border px-3 py-1.5 text-xs font-bold shadow-md backdrop-blur-sm"
+      :class="encounterCountdown.active
+        ? 'border-red-300 bg-red-500/90 text-white animate-pulse'
+        : 'border-slate-200 bg-white/90 text-slate-600'"
+    >
+      <template v-if="encounterCountdown.active">
+        ❗ Pokémon xuất hiện ở chấm đỏ!
+      </template>
+      <template v-else>
+        ⏳ Pokémon hoang dã sau {{ encounterSeconds }}s
+      </template>
     </div>
 
     <!-- CONTROLS HINT -->

@@ -126,7 +126,10 @@ function onSkillLearned(message) {
             class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3"
           >
             <div class="min-w-0">
-              <div class="text-sm font-bold text-slate-800">{{ ball.emoji }} {{ ball.name }}</div>
+              <div class="flex items-center gap-2 text-sm font-bold text-slate-800">
+                <img :src="ball.icon" :alt="ball.name" class="h-8 w-8 shrink-0 object-contain" />
+                <span>{{ ball.name }}</span>
+              </div>
               <div class="text-[11px] text-slate-500">{{ ball.description }}</div>
               <div class="mt-0.5 text-xs text-slate-600">
                 Số lượng: <b class="text-red-600">{{ ball.count }}</b>
@@ -134,7 +137,7 @@ function onSkillLearned(message) {
             </div>
             <div class="shrink-0 text-right">
               <div class="text-xs text-slate-500">Giá mua: {{ ball.price.toLocaleString() }} 💰</div>
-              <div class="text-[10px] text-slate-400">Tỷ lệ bắt: {{ ball.multiplier === Infinity ? '100%' : (ball.multiplier * 100).toFixed(0) + '%' }}</div>
+              <div class="text-[10px] text-slate-400">Hệ số bắt: {{ ball.catchRate >= 255 ? '100%' : 'x' + ball.catchRate }}</div>
             </div>
           </div>
         </div>

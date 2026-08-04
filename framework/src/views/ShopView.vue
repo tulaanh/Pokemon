@@ -120,7 +120,10 @@ function onBuyPokeball(ballId, amount = 1) {
             class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3"
           >
             <div class="min-w-0">
-              <div class="text-sm font-bold text-slate-800">{{ ball.emoji }} {{ ball.name }}</div>
+              <div class="flex items-center gap-2 text-sm font-bold text-slate-800">
+                <img :src="ball.icon" :alt="ball.name" class="h-8 w-8 shrink-0 object-contain" />
+                <span>{{ ball.name }}</span>
+              </div>
               <div class="text-[11px] text-slate-500">{{ ball.description }}</div>
               <div class="mt-0.5 text-xs text-slate-600">
                 Trong kho: <b class="text-red-600">{{ ball.count }}</b> | Giá: <b class="text-red-600">{{ ball.price.toLocaleString() }} 💰</b>

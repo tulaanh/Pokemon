@@ -15,7 +15,7 @@ import GymView from './views/GymView.vue'
 import TowerView from './views/TowerView.vue'
 import DailyView from './views/DailyView.vue'
 import TrainingView from './views/TrainingView.vue'
-import BattleArena from './components/battle/BattleArena.vue'
+import WildBattleView from './views/WildBattleView.vue'
 import { getOnboardingStage, STORY_STAGES } from './game/story.js'
 import Toast from './components/ui/Toast.vue'
 import ConfirmModal from './components/ui/ConfirmModal.vue'
@@ -80,7 +80,7 @@ const MODE_VIEWS = {
   tower: TowerView,
   daily: DailyView,
   training: TrainingView,
-  wild: BattleArena,
+  wild: WildBattleView,
 }
 
 const activeMode = ref(null)
@@ -106,9 +106,9 @@ function handleOpenMode(mode, ...args) {
       battle.gymType = args[0]
     }
     if (mode === 'wild' && args[0]) {
-      // Set wild Pokemon in battle state before opening
-      const { battle, startWildBattle } = await import('./game/battle.js')
-      startWildBattle(args[0])
+      // Lưu wild Pokémon vào battle state để WildBattleView dùng ở màn chuẩn bị
+      const { battle } = await import('./game/battle.js')
+      battle.wildPoke = args[0]
     }
     activeMode.value = mode
   }, { label: 'Đang chuyển cảnh...', minDuration: 300 })
@@ -134,15 +134,29 @@ function kickStart() {
   playMusic(trackForMode(activeMode.value))
 }
 
-onMounted(() => {
-  window.addEventListener('pointerdown', kickStart)
-  window.addEventListener('keydown', kickStart)
-})
+  onMounted(() => {
+    window.addEventListener('pointerdown', kickStart)
+    window.addEventListener('keydown', kickStart)
+    window.addEventListener('keydown', handleGlobalKeydown)
+  })
 
-onBeforeUnmount(() => {
-  window.removeEventListener('pointerdown', kickStart)
-  window.removeEventListener('keydown', kickStart)
-})
+  onBeforeUnmount(() => {
+    window.removeEventListener('pointerdown', kickStart)
+    window.removeEventListener('keydown', kickStart)
+    window.removeEventListener('keydown', handleGlobalKeydown)
+  })
+
+  function handleGlobalKeydown(e) {
+    // Ctrl+I để mở Kho Đồ nhanh
+    if (e.ctrlKey && e.key.toLowerCase() === 'i') {
+      e.preventDefault()
+      if (activeMode.value !== 'inventory') {
+        handleOpenMode('inventory')
+      } else {
+        activeMode.value = null // Đóng kho đồ nếu đang mở
+      }
+    }
+  }
 </script>
 
 <template>
@@ -177,7 +191,7 @@ onBeforeUnmount(() => {
 
       <!-- CHẾ ĐỘ ĐANG MỞ (header + layout giữ nguyên) -->
       <template v-else>
-        <GameHeader />
+        <GameHeader @open-inventory="handleOpenMode('inventory')" />
         <CheatConsole />
 
         <main class="mx-auto max-w-6xl px-4 py-6">

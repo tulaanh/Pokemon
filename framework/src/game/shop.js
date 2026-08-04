@@ -14,10 +14,10 @@ import { addQuestProgress } from './daily.js'
 // ==========================================
 
 export const POKEBALLS = [
-  { id: 'pokeball', name: 'Poké Ball', emoji: '🔴', price: 200, catchRate: 1.0, icon: '/images/items/pokeball.png', description: 'Bóng bắt cơ bản' },
-  { id: 'greatball', name: 'Great Ball', emoji: '🔵', price: 600, catchRate: 1.5, icon: '/images/items/great-ball.png', description: 'Bóng bắt tốt hơn Poké Ball' },
-  { id: 'ultraball', name: 'Ultra Ball', emoji: '🟡', price: 1200, catchRate: 2.0, icon: '/images/items/ultra-ball.png', description: 'Bóng bắt hiệu quả cao' },
-  { id: 'masterball', name: 'Master Ball', emoji: '🟣', price: 50000, catchRate: 255, icon: '/images/items/master-ball.png', description: 'Bắt chắc 100% (hiếm)' },
+  { id: 'pokeball', name: 'Poké Ball', price: 200, catchRate: 1.0, icon: '/images/items/pokeballs/poke-ball.png', description: 'Bóng bắt cơ bản' },
+  { id: 'greatball', name: 'Great Ball', price: 600, catchRate: 1.5, icon: '/images/items/pokeballs/great-ball.png', description: 'Bóng bắt tốt hơn Poké Ball' },
+  { id: 'ultraball', name: 'Ultra Ball', price: 1200, catchRate: 2.0, icon: '/images/items/pokeballs/ultra-ball.png', description: 'Bóng bắt hiệu quả cao' },
+  { id: 'masterball', name: 'Master Ball', price: 50000, catchRate: 255, icon: '/images/items/pokeballs/master-ball.png', description: 'Bắt chắc 100% (hiếm)' },
 ]
 
 export function getPokeballCatalog() {
@@ -34,7 +34,7 @@ export function buyPokeball(ballId, amount = 1) {
   store.gold -= cost
   store.inventory[ballId] = (store.inventory[ballId] || 0) + amount
   saveGameState()
-  return { ok: true, message: `${ball.emoji} Đã mua ${amount} ${ball.name} với giá ${cost.toLocaleString()} Vàng!`, amount, cost }
+  return { ok: true, message: `Đã mua ${amount} ${ball.name} với giá ${cost.toLocaleString()} Vàng!`, amount, cost }
 }
 
 export const RARE_CANDY_PRICE = 1000

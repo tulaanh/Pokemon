@@ -14,15 +14,16 @@ import {
 } from '../../game/worldmap.js'
 import { TOWN_ID, getMap, getMapTransitions } from '../../game/maps.js'
 import { store } from '../../game/store.js'
-import { rollWildEncounter, createWildPokemon, DEFAULT_ENCOUNTERS } from '../../game/capture.js'
+import { rollWildEncounter } from '../../game/capture.js'
 
 // Runtime truyền từ Vue (gọi setWorldRuntime TRƯỚC khi khởi tạo Phaser.Game)
 // để chắc chắn có giá trị khi scene create() chạy (bất kể timing boot của Phaser).
-let runtime = { callbacks: {}, startPos: null, onboardingTarget: null }
+let runtime = { callbacks: {}, startPos: null, onboardingTarget: null, encounters: null }
 export function setWorldRuntime(rt) {
   if (rt.callbacks) runtime.callbacks = rt.callbacks
   if ('startPos' in rt) runtime.startPos = rt.startPos
   if ('onboardingTarget' in rt) runtime.onboardingTarget = rt.onboardingTarget
+  if ('encounters' in rt) runtime.encounters = rt.encounters
 }
 
 const PLAYER_SPEED = 160
@@ -30,9 +31,8 @@ const PLAYER_SPEED = 160
 // Trạng thái encounter toàn cục (chỉ tồn tại trong session, không lưu vào save)
 const wildEncounterState = {
   active: null,        // { id, col, row, x, y, pokemon, sprite, mapId }
-  spawnTimer: 0,       // Timer để spawn theo thời gian
-  distanceMoved: 0,    // Khoảng cách đã di chuyển
-  lastPlayerPos: { x: 0, y: 0 },
+  spawnTimer: 0,       // Bộ đếm: mỗi intervalMs lại spawn 1 Pokémon
+  despawnTimer: 0,     // Bộ đếm thời gian tồn tại — hết hạn thì biến mất nếu không tương tác
   cooldownTimer: 0,    // Cooldown sau khi bắt/thất bại
 }
 
@@ -75,13 +75,16 @@ export class WorldScene extends Phaser.Scene {
     // Cấu hình encounter từ runtime (được truyền từ WorldMap.vue qua setWorldRuntime)
     this.encounterConfig = data?.encounters || runtime.encounters || this.mapInfo.encounters || { enabled: false }
     this.encounterState = wildEncounterState
-    // Reset encounter khi đổi map
+    // Reset encounter khi đổi map và tránh dùng lại timer từ scene trước.
     if (this.encounterState.active && this.encounterState.active.mapId !== this.mapId) {
       this.clearWildEncounter()
     }
     this.encounterState.active = this.encounterState.active?.mapId === this.mapId ? this.encounterState.active : null
-    this.encounterState.lastPlayerPos = { x: this.startPos.x, y: this.startPos.y }
-    this.encounterState.distanceMoved = 0
+    // Seed spawnTimer gần đạt ngưỡng để Pokémon ĐẦU TIÊN xuất hiện sau ~5s,
+    // sau đó cứ mỗi intervalMs lại xuất hiện tiếp.
+    this.encounterState.spawnTimer = Math.max(0, (this.encounterConfig.intervalMs || 30000) - 5000)
+    this.encounterState.despawnTimer = 0
+    this.encounterTickTimer = 0
   }
 
   // Khóa/ mở khóa di chuyển nhân vật (dùng khi hội thoại onboarding đang mở)
@@ -579,6 +582,11 @@ export class WorldScene extends Phaser.Scene {
   // ======================================================================
   update(time, delta) {
     if (!this.player || !this.cursors) return
+
+    // Cập nhật wild encounter TRƯỚC khi bị khoá — bộ đếm 30s/60s chạy theo thời gian
+    // thực kể cả khi hội thoại/modal đang mở, để không bị treo trong lúc onboarding.
+    this.updateWildEncounter(delta)
+
     if (this.locked) return
 
     const keys = this.cursors
@@ -624,9 +632,6 @@ export class WorldScene extends Phaser.Scene {
     this.drawDebugBox()
     this.checkInteraction()
     this.callbacks.onPlayerPos?.(this.player.x, this.player.y)
-
-    // Cập nhật wild encounter
-    this.updateWildEncounter(delta)
   }
 
   // Vẽ lại hitbox mỗi frame (chỉ dùng để debug): body vật lý (xanh) +
@@ -701,6 +706,8 @@ export class WorldScene extends Phaser.Scene {
         }
       } else if (target.type === 'io') {
         this.handleTransition(target)
+      } else if (target.type === 'wild') {
+        this.handleWildEncounter(target)
       } else {
         this.callbacks.onTileInteract?.(target)
       }
@@ -817,9 +824,7 @@ export class WorldScene extends Phaser.Scene {
     if (!this.encounterConfig.enabled) return
     if (this.encounterState.active) return // Đã có encounter
     if (this.encounterState.cooldownTimer > 0) return
-
-    // Kiểm tra xem có modal/hội thoại đang mở không
-    if (this.locked) return
+    if ((this.encounterConfig.maxActive || 1) < 1) return
 
     const wildPokemon = rollWildEncounter(this.encounterConfig)
     if (!wildPokemon) return
@@ -831,15 +836,17 @@ export class WorldScene extends Phaser.Scene {
     const x = spawnPos.col * ts + ts / 2
     const y = spawnPos.row * ts + ts / 2
 
-    // Tạo sprite cho Pokémon (dùng emoji tạm thời, sau sẽ thay bằng sprite thật)
-    const sprite = this.add.text(x, y - 16, wildPokemon.icon || '❓', {
-      fontSize: '24px',
-    }).setOrigin(0.5, 1).setDepth(100000)
+    // Dấu chấm đỏ báo Pokémon hoang dã xuất hiện ngẫu nhiên trên bản đồ.
+    const sprite = this.add.circle(x, y, 6, 0xef4444, 1)
+      .setStrokeStyle(2, 0xffffff, 1)
+      .setDepth(100000)
 
     // Hiệu ứng nhấp nháy
     this.tweens.add({
       targets: sprite,
-      alpha: 0.5,
+      alpha: 0.4,
+      scaleX: 1.4,
+      scaleY: 1.4,
       duration: 500,
       yoyo: true,
       repeat: -1,
@@ -866,6 +873,12 @@ export class WorldScene extends Phaser.Scene {
       ...interactPoint,
       mapId: this.mapId,
     }
+
+    // Bắt đầu đếm thời gian tồn tại — sau despawnMs sẽ biến mất nếu không tương tác
+    this.encounterState.despawnTimer = 0
+
+    // Báo Vue để vẽ chấm đỏ tương ứng trên minimap
+    this.callbacks.onWildSpawn?.({ x, y, mapId: this.mapId })
   }
 
   // Xử lý khi player tương tác với Pokémon hoang dã
@@ -879,8 +892,21 @@ export class WorldScene extends Phaser.Scene {
     this.callbacks.onWildEncounter?.(interactPoint.pokemon)
   }
 
-  // Xóa wild encounter hiện tại
+  // Xóa wild encounter hiện tại (khi bắt/bỏ chạy) — bắt đầu cooldown
   clearWildEncounter() {
+    this.removeWildEncounter()
+    // Bắt đầu cooldown trên đúng map đang chạy. Khi đổi map, encounter mới có thể sinh lại.
+    this.encounterState.cooldownTimer = this.encounterConfig.cooldownMs || 12000
+  }
+
+  // Pokémon hoang dã hết thời gian tồn tại (không tương tác) → biến mất, không gây cooldown
+  despawnWildPokemon() {
+    this.removeWildEncounter()
+    this.encounterState.cooldownTimer = 0
+  }
+
+  // Dọn sprite + interact point của wild encounter hiện tại
+  removeWildEncounter() {
     if (this.encounterState.active) {
       // Xóa sprite
       if (this.encounterState.active.sprite) {
@@ -892,9 +918,9 @@ export class WorldScene extends Phaser.Scene {
         this.interactPoints.splice(idx, 1)
       }
       this.encounterState.active = null
+      this.encounterState.despawnTimer = 0
+      this.callbacks.onWildClear?.()
     }
-    // Bắt đầu cooldown
-    this.encounterState.cooldownTimer = this.encounterConfig.cooldownMs || 12000
   }
 
   // Cập nhật encounter timer (gọi trong update)
@@ -907,31 +933,37 @@ export class WorldScene extends Phaser.Scene {
       if (this.encounterState.cooldownTimer < 0) this.encounterState.cooldownTimer = 0
     }
 
-    // Tăng spawn timer
-    this.encounterState.spawnTimer += delta
+    // Pokémon hoang dã chỉ tồn tại trong despawnMs — sau đó biến mất nếu không tương tác
+    if (this.encounterState.active) {
+      this.encounterState.despawnTimer += delta
+      if (this.encounterState.despawnTimer >= (this.encounterConfig.despawnMs || 60000)) {
+        this.despawnWildPokemon()
+      }
+    }
 
-    // Kiểm tra spawn theo thời gian
-    if (this.encounterState.spawnTimer >= (this.encounterConfig.intervalMs || 9000)) {
+    // Bộ đếm spawn: cứ mỗi intervalMs lại có 1 Pokémon xuất hiện ngẫu nhiên
+    this.encounterState.spawnTimer += delta
+    if (this.encounterState.spawnTimer >= (this.encounterConfig.intervalMs || 30000)) {
       this.encounterState.spawnTimer = 0
       this.spawnWildPokemon()
     }
 
-    // Kiểm tra spawn theo di chuyển
-    if (this.player) {
-      const dx = this.player.x - this.encounterState.lastPlayerPos.x
-      const dy = this.player.y - this.encounterState.lastPlayerPos.y
-      const dist = Math.hypot(dx, dy)
-      this.encounterState.distanceMoved += dist
-      this.encounterState.lastPlayerPos.x = this.player.x
-      this.encounterState.lastPlayerPos.y = this.player.y
-
-      // Mỗi 200px di chuyển có cơ hội spawn
-      if (this.encounterState.distanceMoved >= 200) {
-        this.encounterState.distanceMoved = 0
-        if (Math.random() < (this.encounterConfig.chance || 0.25)) {
-          this.spawnWildPokemon()
-        }
-      }
+    // Báo Vue bộ đếm ~2 lần/giây để hiển thị đồng hồ đếm ngược + tự đồng bộ chấm đỏ minimap
+    this.encounterTickTimer += delta
+    if (this.encounterTickTimer >= 500) {
+      this.encounterTickTimer = 0
+      const activeEnc = this.encounterState.active
+      const active = !!activeEnc
+      const remainingMs = active
+        ? Math.max(0, (this.encounterConfig.despawnMs || 60000) - this.encounterState.despawnTimer)
+        : Math.max(0, (this.encounterConfig.intervalMs || 30000) - this.encounterState.spawnTimer)
+      this.callbacks.onEncounterTick?.({
+        active,
+        remainingMs,
+        mapId: this.mapId,
+        x: activeEnc?.x ?? null,
+        y: activeEnc?.y ?? null,
+      })
     }
   }
 }

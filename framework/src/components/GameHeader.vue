@@ -31,6 +31,12 @@ async function onReset() {
   })
   if (ok) resetGameState()
 }
+
+// Emit event to open inventory mode
+const emit = defineEmits(['open-inventory'])
+function openInventory() {
+  emit('open-inventory')
+}
 </script>
 
 <template>
@@ -78,6 +84,15 @@ async function onReset() {
         </div>
 
         <div class="flex items-center gap-2">
+          <!-- Nút mở Kho Đồ nhanh -->
+          <button
+            @click="openInventory"
+            class="rounded-lg border border-purple-300 bg-purple-500/10 px-3 py-1.5 text-xs font-semibold text-purple-600 transition hover:bg-purple-500/20"
+            title="Mở Kho Đồ (Ctrl+I)"
+          >
+            📦 Kho Đồ
+          </button>
+
           <button
             @click="toggleMusic()"
             :title="musicOn ? 'Tắt nhạc' : 'Bật nhạc'"

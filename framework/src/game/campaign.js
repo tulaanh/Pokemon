@@ -437,6 +437,54 @@ export function checkStartBattlePassives() {
   if (battle.enemyPoke) applyStartBattlePassive(battle.enemyPoke)
 }
 
+// === BẮT ĐẦU TRẬN BẮT POKÉMON HOANG DÃ ===
+export function startWildBattle(wildPokemon) {
+  if (!wildPokemon) return false
+
+  battle.isBattling = true
+  battle.mode = 'wild'
+  battle.activePokeIdx = null
+  battle.enemyPoke = wildPokemon
+  battle.enemyTeam = []
+  battle.currentTurnOwner = 'player'
+  battle.extraTurnOwner = null
+  battle.isProcessingTurn = false
+  battle.selectingSlot = null
+  battle.waveIdx = 0
+  battle.campaignId = null
+  battle.storySceneId = null
+  battle.towerFloor = null
+  battle.currentEnemies = []
+  battle.gymType = null
+  battle.rewards = { gems: 0, exp: 0, gold: 0, candy: 0 }
+  battle.battleTitle = `🌿 Gặp ${wildPokemon.name} Hoang Dã`
+  battle.skillQueue = []
+  clearBattleLog()
+  clearFx()
+
+  healBattleTeam()
+
+  if (!switchToNextAlivePokemon()) return false
+
+  // Chỉ có 1 wave cho wild battle
+  battle.waveIndicator = `Wild Pokémon`
+
+  battleLog(`🌿 Bạn gặp phải <b>${wildPokemon.name}</b> Lv.${wildPokemon.level} hoang dã!`)
+  checkStartBattlePassives()
+  determineFirstTurn()
+  return true
+}
+
+// Bắt Pokéball thất bại nhưng Pokémon còn sống → trận tiếp tục, đến lượt nó phản công
+export function continueAfterWildCapture() {
+  if (!battle.enemyPoke || battle.enemyPoke.hp <= 0) return false
+  battle.isProcessingTurn = false
+  battle.currentTurnOwner = 'bot'
+  battleLog(`🔴 <b>${battle.enemyPoke.name}</b> phá bóng thoát ra — nó nổi giận!`)
+  startNextTurn()
+  return true
+}
+
 // === HIỆU ỨNG ĐẦU LƯỢT (PASSIVE + CHOÁNG + GIẢM THỜI LƯỢNG BUFF/DEBUFF) ===
 function processStartOfTurnEffects(poke) {
   let isPlayer = poke === store.team[battle.activePokeIdx]
@@ -711,6 +759,13 @@ export function performInBattleSwitch(targetIdx) {
 
 // === XỬ LÝ HẠ GỤC QUÁI / CHIẾN THẮNG ===
 function handleEnemyDefeated() {
+  // Trận bắt wild: không thưởng gem/gold/exp — modal chọn Pokéball
+  // sẽ được UI mở qua watcher enemyPoke.hp <= 0.
+  if (battle.mode === 'wild') {
+    battleLog(`💫 <b>${battle.enemyPoke.name}</b> đã gục ngã — hãy ném Pokéball để bắt!`)
+    return
+  }
+
   let earnedExp = 30 + battle.enemyPoke.level * 10
   battle.rewards.exp += earnedExp
 
@@ -764,6 +819,13 @@ function handleEnemyDefeated() {
 
 export function showCampaignResult(win) {
   applyPendingLevelUps()
+  // Trận bắt wild: không đánh dấu chiến dịch, không tính quest thắng
+  if (battle.mode === 'wild') {
+    battle.resultOpen = true
+    battle.resultWin = win
+    saveGameState()
+    return
+  }
   // Trận huấn luyện không đánh dấu chiến dịch, không tính quest thắng
   if (win && battle.mode !== 'training') {
     markCampaignCleared(battle.campaignId)
