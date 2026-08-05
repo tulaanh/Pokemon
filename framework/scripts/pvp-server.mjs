@@ -514,14 +514,18 @@ wss.on('connection', (ws, req) => {
 
     const { type, payload = {} } = msg
     switch (type) {
-      case 'auth':
-        client.playerId = payload.playerId || 'guest'
-        client.playerName = String(payload.playerName || payload.playerId || 'Guest').slice(0, 24)
-        client.level = Math.max(1, Number(payload.level) || 1)
-        send(ws, 'queue_update', { position: 0, estimatedWaitMs: 0 })
-        console.log(`[PvP] Auth: ${client.playerId}`)
-        break
-      case 'ping':
+       case 'auth':
+         client.playerId = payload.playerId || 'guest'
+         client.playerName = String(payload.playerName || payload.playerId || 'Guest').slice(0, 24)
+         client.level = Math.max(1, Number(payload.level) || 1)
+         send(ws, 'queue_update', { position: 0, estimatedWaitMs: 0 })
+         console.log(`[PvP] Auth: ${client.playerId}`)
+         break
+       case 'update_level':
+         client.level = Math.max(1, Number(payload.level) || 1)
+         console.log(`[PvP] Level updated: ${client.playerId} -> ${client.level}`)
+         break
+       case 'ping':
         send(ws, 'pong')
         break
       case 'matchmake': {

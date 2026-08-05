@@ -16,15 +16,16 @@ const rank = computed(() => getPvpRank(elo.value))
 
 <template>
   <div class="flex min-w-0 items-center gap-2" :class="compact ? 'gap-1.5' : 'gap-3'">
-    <div class="flex shrink-0 items-center justify-center rounded-full bg-slate-100 p-1" :title="rank.name">
-      <img :src="rank.image" :alt="`Huy hiệu ${rank.name}`" class="h-9 w-9 object-contain" @error="$event.target.hidden = true; $event.target.nextElementSibling.hidden = false" />
-      <span hidden class="flex h-9 w-9 items-center justify-center text-lg font-black text-slate-600">{{ rank.icon }}</span>
-    </div>
-    <div class="min-w-0 text-left">
-      <div class="break-words text-sm font-black leading-tight text-slate-900" :class="compact ? 'line-clamp-1' : 'line-clamp-2'">{{ name }}</div>
-      <div class="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] font-bold text-slate-500">
-        <span>Lv.{{ level || '?' }}</span><span>·</span><span class="text-indigo-600">{{ rank.shortName }}</span><span>·</span><span>ELO {{ elo ?? '?' }}</span>
+    <div class="relative shrink-0">
+      <div class="flex h-10 w-10 items-center justify-center rounded-full border-2" :class="rank.tone === 'amber' ? 'border-amber-400 bg-amber-50' : rank.tone === 'violet' ? 'border-violet-400 bg-violet-50' : rank.tone === 'blue' ? 'border-blue-400 bg-blue-50' : rank.tone === 'red' ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-slate-50'">
+        <img :src="rank.image" :alt="rank.name" class="h-6 w-6 object-contain" @error="$event.target.hidden = true; $event.target.nextElementSibling.hidden = false" />
+        <span hidden class="flex h-6 w-6 items-center justify-center text-sm font-black" :class="rank.tone === 'amber' ? 'text-amber-600' : rank.tone === 'violet' ? 'text-violet-600' : rank.tone === 'blue' ? 'text-blue-600' : rank.tone === 'red' ? 'text-red-600' : 'text-slate-600'">{{ rank.icon }}</span>
       </div>
+      <div class="absolute -bottom-1 -right-1 flex h-6 min-w-[22px] items-center justify-center rounded-full border-2 border-white bg-slate-900 px-1 text-[9px] font-black text-white shadow-md">{{ level ?? '–' }}</div>
+    </div>
+    <div class="min-w-0">
+      <div class="truncate text-sm font-black leading-tight text-slate-900" :class="compact ? 'line-clamp-1' : 'line-clamp-2'">{{ name }}</div>
+      <div class="text-[10px] font-bold text-slate-400">Lv.{{ level ?? '–' }} · {{ rank.shortName }}</div>
     </div>
   </div>
 </template>

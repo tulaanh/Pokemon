@@ -17,6 +17,7 @@ import { recalculatePokemonStats, recalculateSkillValues } from './stats.js'
 import { applyEvolutions } from './evolution.js'
 import { store, addPokemonToInventory, saveGameState } from './store.js'
 import { addQuestProgress } from './daily.js'
+import { syncPvpLevel } from './pvp/wsClient.js'
 
 export function getBannerById(id) {
   return GACHA_BANNERS.find((b) => b.id === id) || GACHA_BANNERS[0]
@@ -358,6 +359,7 @@ export function cheatSetLevel(val) {
   if (isNaN(val) || val < 1) val = 1
   if (val > 100) val = 100
   store.gameState.player.level = val
+  syncPvpLevel()
   saveGameState()
   return val
 }

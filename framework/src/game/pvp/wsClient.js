@@ -328,6 +328,11 @@ export function disconnectPvP() {
   clearPvPCallbacks()
 }
 
+// Đồng bộ level hiện tại lên server (gọi khi level thay đổi hoặc trước khi tìm trận)
+export function syncPvpLevel() {
+  send('update_level', { level: store.gameState.player.level || 1 })
+}
+
 // Kiểm tra kết nối
 export function isConnected() {
   return ws?.readyState === WebSocket.OPEN

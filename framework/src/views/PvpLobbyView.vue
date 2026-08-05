@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { store } from '../game/store.js'
-import { connectPvP, disconnectPvP, findMatch, cancelMatch, setPvPCallbacks, clearPvPCallbacks, isConnected } from '../game/pvp/wsClient.js'
+import { connectPvP, disconnectPvP, findMatch, cancelMatch, setPvPCallbacks, clearPvPCallbacks, isConnected, syncPvpLevel } from '../game/pvp/wsClient.js'
 import { showToast } from '../components/ui/toast.js'
 import PokeSprite from '../components/PokeSprite.vue'
 import RarityText from '../components/RarityText.vue'
@@ -156,6 +156,7 @@ async function startMatchmaking() {
   }))
   inQueue.value = true
   startQueueTimer()
+  syncPvpLevel()
   findMatch('standard', teamSummary)
 }
 

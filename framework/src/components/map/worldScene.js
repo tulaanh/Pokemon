@@ -13,6 +13,7 @@ import {
   autoGrassTile,
 } from '../../game/worldmap.js'
 import { TOWN_ID, getMap, getMapTransitions } from '../../game/maps.js'
+import { getPvpRank } from '../../game/pvp/rank.js'
 import { store } from '../../game/store.js'
 import { rollWildEncounter } from '../../game/capture.js'
 
@@ -665,10 +666,24 @@ export class WorldScene extends Phaser.Scene {
     return player?.id || player?.playerId || player?.name || null
   }
 
+  getPlayerDisplayName(player) {
+    const rawName = String(player?.name || player?.playerName || 'Guest').trim()
+    return rawName.replace(/^level\s*[:：-]\s*/i, '').trim() || 'Guest'
+  }
+
+  getPlayerLabelText(player) {
+    const name = this.getPlayerDisplayName(player)
+    const level = player?.level || 1
+    const rank = getPvpRank(player?.elo)
+    return `${rank.icon} Lv.${level} ${name}`
+  }
+
   buildRemotePlayer(player) {
     const id = this.getRemotePlayerId(player)
     if (!id || this.remotePlayers?.has(id)) return this.remotePlayers?.get(id) || null
 
+    const displayName = this.getPlayerDisplayName(player)
+    const labelText = this.getPlayerLabelText(player)
     const sprite = this.physics.add.sprite(player.x || 0, player.y || 0, 'player', 0)
     const s = this.mapInfo.playerScale || 1
     sprite.setScale(s)
@@ -680,13 +695,19 @@ export class WorldScene extends Phaser.Scene {
     sprite.body.setAllowGravity(false)
     sprite.body.moves = false
 
-    const label = this.add.text(sprite.x, sprite.y - 26 * s, player.name || 'Guest', {
-      fontSize: `${11 * s}px`,
+    const label = this.add.text(sprite.x, sprite.y - 26 * s, labelText, {
+      fontSize: `${8 * s}px`,
       fontFamily: 'system-ui, sans-serif',
+      fontWeight: 'bold',
       color: '#ffffff',
-      backgroundColor: 'rgba(15, 23, 42, 0.72)',
-      padding: { x: 4, y: 2 },
-    }).setOrigin(0.5, 1).setDepth(900001)
+      stroke: '#000000',
+      strokeThickness: 3 * s,
+      shadowColor: 'rgba(0,0,0,0.5)',
+      shadowBlur: 2 * s,
+      shadowOffsetX: 0,
+      shadowOffsetY: 0,
+      padding: { x: 3, y: 1 },
+    }).setOrigin(0.5, 1).setDepth(900001).setResolution(2)
 
     const aura = this.add.circle(sprite.x, sprite.y + 6 * s, 10 * s, 0x60a5fa, 0.18)
       .setDepth(899999)
@@ -700,7 +721,9 @@ export class WorldScene extends Phaser.Scene {
       targetY: Number(player.y || 0),
       facing: player.facing || 'down',
       moving: !!player.moving,
-      name: player.name || 'Guest',
+      name: labelText,
+      level: player?.level || 1,
+      elo: player?.elo,
     }
     this.remotePlayers.set(id, remote)
     this.applyRemoteFacing(remote)
@@ -737,7 +760,9 @@ export class WorldScene extends Phaser.Scene {
     remote.targetY = Number(player.y || 0)
     remote.facing = player.facing || remote.facing || 'down'
     remote.moving = !!player.moving
-    remote.name = player.name || remote.name
+    remote.level = player?.level ?? remote.level
+    remote.elo = player?.elo ?? remote.elo
+    remote.name = this.getPlayerLabelText(player) || remote.name
     remote.label?.setText(remote.name)
     this.applyRemoteFacing(remote)
 
