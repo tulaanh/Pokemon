@@ -21,6 +21,7 @@ import {
   sendWorldMove,
   sendPvpInvite,
   respondPvpInvite,
+  syncPvpLevel,
   setPvPCallbacks,
   clearPvPCallbacks,
   setWorldCallbacks,
@@ -287,6 +288,9 @@ async function ensureArenaPresence(force = false) {
       arenaConnectionHint.value = 'Chưa kết nối server PvP'
       return
     }
+
+    // Đồng bộ level hiện tại lên server để người chơi khác thấy đúng level
+    syncPvpLevel()
 
     const scene = getScene()
     const x = scene?.player?.x ?? store.worldPos?.x ?? mapInfo.value.spawn.x
