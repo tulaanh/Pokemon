@@ -78,7 +78,12 @@ function defaultState() {
     mergeSlotSub: null,
     currentSelectingSlot: null,
     mergeSearchQuery: '',
-    settings: { musicEnabled: true, musicVolume: 0.5 },
+    settings: {
+      musicEnabled: true,
+      musicVolume: 0.5,
+      autoDiscardCommon: false,
+      autoDiscardRare: false,
+    },
     worldPos: { mapId: 'house', x: houseSpawn.x, y: houseSpawn.y },
     prevMapPos: null,
     onboardingStage: 0,

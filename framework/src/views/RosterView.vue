@@ -128,7 +128,7 @@ async function onSellDuplicates() {
       </div>
 
       <!-- ROSTER LIST -->
-      <div v-else class="space-y-2">
+      <div v-else class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <div
           v-for="item in processedList"
           :key="getPokemonUniqueId(item.pokemon)"

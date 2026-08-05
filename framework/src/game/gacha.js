@@ -248,9 +248,14 @@ function executeBannerRoll(bannerId) {
 
   // 4. Tạo instance
   let newPoke = buildNewPokemon(species, selectedRarity, pokeLevel)
-  addPokemonToInventory(newPoke)
+  const rarityName = selectedRarity.name
+  const autoDiscard =
+    (rarityName === 'Common' && store.settings.autoDiscardCommon) ||
+    (rarityName === 'Rare' && store.settings.autoDiscardRare)
 
-  return newPoke
+  if (!autoDiscard) addPokemonToInventory(newPoke)
+
+  return { ...newPoke, autoDiscarded: autoDiscard }
 }
 
 /**
@@ -263,7 +268,11 @@ export function rollGacha(bannerId, times) {
   const banner = getBannerById(bannerId)
   let totalCost = banner.cost * times
 
-  if (store.team.length + times > INVENTORY_LIMIT) {
+  const discardEnabled =
+    (store.settings.autoDiscardCommon && (banner.rarityChances.Common || 0) > 0) ||
+    (store.settings.autoDiscardRare && (banner.rarityChances.Rare || 0) > 0)
+
+  if (!discardEnabled && store.team.length + times > INVENTORY_LIMIT) {
     return {
       ok: false,
       message: `Kho đã đầy! (${store.team.length}/${INVENTORY_LIMIT}) Không thể quay thêm. Hãy hợp nhất hoặc giải phóng chỗ trống.`,
@@ -291,7 +300,12 @@ export function rollGacha(bannerId, times) {
 
   let results = []
   for (let i = 0; i < times; i++) {
-    results.push(executeBannerRoll(bannerId))
+    const result = executeBannerRoll(bannerId)
+    if (result.autoDiscarded) {
+      results.push(result)
+      continue
+    }
+    results.push(result)
   }
 
   addQuestProgress('rolls', times)

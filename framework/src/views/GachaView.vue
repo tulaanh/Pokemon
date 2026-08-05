@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { GACHA_BANNERS } from '../game/data.js'
 import { rollGacha, getBannerById } from '../game/gacha.js'
-import { store } from '../game/store.js'
+import { store, saveGameState } from '../game/store.js'
 import { showToast } from '../components/ui/toast.js'
 import RarityText from '../components/RarityText.vue'
 import PokeSprite from '../components/PokeSprite.vue'
@@ -19,6 +19,10 @@ const teamCount = computed(() => store.team.length)
 
 function selectBanner(id) {
   selectedBannerId.value = id
+}
+
+function saveAutoDiscardSettings() {
+  saveGameState()
 }
 
 function rarityGlow(r) {
@@ -72,9 +76,39 @@ function handleRoll(times) {
         />
       </div>
 
-      <div class="mb-5">
-        <GachaRollPanel :banner="activeBanner" @roll="handleRoll" />
-      </div>
+        <div class="mb-5">
+          <GachaRollPanel :banner="activeBanner" @roll="handleRoll" />
+        </div>
+
+        <div class="mb-5 rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-left">
+          <div class="mb-2 flex items-center justify-between gap-2">
+            <h4 class="text-sm font-bold text-amber-700">🧹 Tự động bỏ Pokémon</h4>
+            <span class="text-[11px] text-slate-500">Không nhận tài nguyên</span>
+          </div>
+          <p class="mb-3 text-xs text-slate-500">
+            Pokémon được bật sẽ bị bỏ ngay sau khi quay và không chiếm chỗ trong kho.
+          </p>
+          <div class="grid gap-2 sm:grid-cols-2">
+            <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+              <input
+                v-model="store.settings.autoDiscardCommon"
+                type="checkbox"
+                class="h-4 w-4 accent-slate-500"
+                @change="saveAutoDiscardSettings"
+              />
+              <span>Bỏ Pokémon Common</span>
+            </label>
+            <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm">
+              <input
+                v-model="store.settings.autoDiscardRare"
+                type="checkbox"
+                class="h-4 w-4 accent-indigo-500"
+                @change="saveAutoDiscardSettings"
+              />
+              <span>Bỏ Pokémon Rare</span>
+            </label>
+          </div>
+        </div>
 
       <!-- KẾT QUẢ GACHA -->
       <div v-if="lastResult" class="mb-5 text-sm" :key="lastResult.times + '-' + lastResult.results[0].id">
