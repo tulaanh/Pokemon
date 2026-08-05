@@ -3,8 +3,6 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { store } from '../game/store.js'
 import { connectPvP, disconnectPvP, findMatch, cancelMatch, setPvPCallbacks, clearPvPCallbacks, isConnected, syncPvpLevel } from '../game/pvp/wsClient.js'
 import { showToast } from '../components/ui/toast.js'
-import PokeSprite from '../components/PokeSprite.vue'
-import RarityText from '../components/RarityText.vue'
 import PvpPlayerIdentity from '../components/pvp/PvpPlayerIdentity.vue'
 
 const emit = defineEmits(['open', 'close'])
@@ -16,14 +14,13 @@ const queuePosition = ref(0)
 const estimatedWait = ref(0)
 const matched = ref(false)
 const matchData = ref(null)
-const selectedTeam = ref([])
 const maxTeamSize = 3
 const queueTimer = ref(null)
 const waitTime = ref(0)
 
 // Computed
-const availablePokemon = computed(() => store.team.filter(p => p && p.hp > 0))
-const canStartMatchmaking = computed(() => selectedTeam.value.length === maxTeamSize && !inQueue.value && isConnected())
+const aliveCount = computed(() => store.team.filter(p => p && p.hp > 0).length)
+const canStartMatchmaking = computed(() => aliveCount >= 1 && !inQueue.value && isConnected())
 const myElo = computed(() => store.pvp.elo)
 const myRecord = computed(() => `${store.pvp.wins}W / ${store.pvp.losses}L / ${store.pvp.draws}D`)
 const winRate = computed(() => {
@@ -66,7 +63,15 @@ function setupCallbacks() {
       matchData.value = payload
       inQueue.value = false
       clearQueueTimer()
-      showToast(`⚔️ Đã tìm thấy đối thủ: ${payload.opponent.name}`, 'success')
+      const pickSeconds = payload.pickDeadline ? Math.max(0, Math.ceil((payload.pickDeadline - Date.now()) / 1000)) : 30
+      showToast(`⚔️ Đã tìm thấy đối thủ: ${payload.opponent.name}. Chọn đội hình trong ${pickSeconds} giây!`, 'success')
+      emit('open', 'pvp_pick', {
+        battleId: payload.battleId || payload.id,
+        opponent: payload.opponent,
+        format: payload.format,
+        pickDeadline: payload.pickDeadline,
+        pickSize: payload.pickSize || maxTeamSize,
+      })
     },
     onQueueUpdate: (payload) => {
       queuePosition.value = payload.position
@@ -101,63 +106,20 @@ function startQueueTimer() {
   }, 1000)
 }
 
-// Toggle Pokémon trong team
-function togglePokemon(pokemon) {
-  if (inQueue.value || matched.value) return
-  const idx = selectedTeam.value.findIndex(p => p.id === pokemon.id)
-  if (idx >= 0) {
-    selectedTeam.value.splice(idx, 1)
-  } else if (selectedTeam.value.length < maxTeamSize) {
-    selectedTeam.value.push(pokemon)
-  } else {
-    showToast(`⚠️ Chỉ được chọn tối đa ${maxTeamSize} Pokémon`, 'warning')
-  }
-}
-
-function isSelected(pokemon) {
-  return selectedTeam.value.some(p => p.id === pokemon.id)
-}
-
-function getSlotIndex(pokemon) {
-  return selectedTeam.value.findIndex(p => p.id === pokemon.id)
-}
-
-function hpPct(pokemon) {
-  if (!pokemon?.maxHp) return 0
-  return Math.max(0, Math.min(100, Math.round((pokemon.hp / pokemon.maxHp) * 100)))
-}
-
 // Bắt đầu tìm trận
 async function startMatchmaking() {
-  if (selectedTeam.value.length !== maxTeamSize) {
-    showToast(`⚠️ Cần chọn đủ ${maxTeamSize} Pokémon`, 'warning')
+  if (aliveCount.value < 1) {
+    showToast('⚠️ Cần ít nhất 1 Pokémon còn HP để tìm trận', 'warning')
     return
   }
   if (!isConnected()) {
     await initConnection()
     if (!isConnected()) return
   }
-  // Validate team
-  const teamSummary = selectedTeam.value.map(p => ({
-    id: p.id,
-    speciesId: p.speciesId,
-    level: p.level,
-    hp: p.hp,
-    maxHp: p.maxHp,
-    atk: p.atk,
-    def: p.def,
-    spa: p.spa,
-    spd: p.spd,
-    spe: p.spe,
-    types: p.types,
-    skills: p.skills?.map(s => ({ id: s.id, pp: s.pp, maxPp: s.maxPp, currentCd: s.currentCd })) || [],
-    passive: p.passive,
-    talents: p.talents,
-  }))
   inQueue.value = true
   startQueueTimer()
   syncPvpLevel()
-  findMatch('standard', teamSummary)
+  findMatch('standard')
 }
 
 // Hủy tìm trận
@@ -166,12 +128,6 @@ function cancelMatchmaking() {
   clearQueueTimer()
   cancelMatch()
   showToast('❌ Đã hủy tìm trận', 'info')
-}
-
-// Xác nhận vào trận
-function acceptMatch() {
-  // Server sẽ gửi battle_start
-  matched.value = false
 }
 
 // Đóng lobby
@@ -265,83 +221,30 @@ watch(() => inQueue.value, (val) => {
             <div class="mt-1 text-xs text-amber-700">Bạn vẫn xem được đội hình/lịch sử, nhưng cần bật backend WebSocket trước khi tìm trận online.</div>
           </div>
 
-          <!-- Chọn đội hình -->
+          <!-- Sẵn sàng tìm trận -->
           <div v-if="!inQueue" class="space-y-4">
             <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
               <span class="text-xl">👥</span>
-              Chọn đội hình ({{ selectedTeam.length }}/{{ maxTeamSize }})
+              Tìm Trận Đấu PvP
             </h3>
-            <p class="text-sm text-slate-500">Chọn đúng 3 Pokémon có HP > 0 để vào hàng đợi</p>
-            
-            <!-- Selected Team Slots -->
-            <div class="flex gap-3 overflow-x-auto pb-2">
-              <div v-for="i in maxTeamSize" :key="i" class="flex-shrink-0">
-                <div class="relative w-28 h-36">
-                  <div v-if="selectedTeam[i-1]" class="h-full rounded-xl border border-indigo-200 bg-indigo-50 p-2 text-center shadow-sm">
-                    <PokeSprite :name="selectedTeam[i-1].name" :type="selectedTeam[i-1].type" :size-class="'mx-auto h-12 w-12'" :img-class="'h-12 w-12'" :rounded="'rounded-full'" />
-                    <RarityText :rarity="selectedTeam[i-1].rarity" :label="selectedTeam[i-1].name" class="mt-1 block truncate text-xs font-black" />
-                    <div class="mt-1 text-[10px] font-bold text-slate-500">Lv.{{ selectedTeam[i-1].level }}</div>
-                    <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-200">
-                      <div class="h-full rounded-full bg-emerald-500" :style="{ width: `${hpPct(selectedTeam[i-1])}%` }"></div>
-                    </div>
-                  </div>
-                  <div v-else class="absolute inset-0 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/50 flex items-center justify-center">
-                    <span class="text-3xl text-slate-300">+</span>
-                  </div>
-                  <button v-if="selectedTeam[i-1]" @click="togglePokemon(selectedTeam[i-1])" class="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white text-xs flex items-center justify-center shadow-lg hover:bg-red-600">×</button>
-                </div>
+            <p class="text-sm text-slate-500">Sau khi có đối thủ, bạn có <b>30 giây</b> chọn 1–{{ maxTeamSize }} Pokémon từ bộ sưu tập. Cả 2 bên đều thấy được đội hình đối phương đang chọn.</p>
+
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              <div class="flex items-center justify-between">
+                <span>🎒 Pokémon còn HP sẵn sàng chiến đấu</span>
+                <b class="text-slate-800">{{ aliveCount }}</b>
               </div>
-            </div>
-
-            <!-- Available Pokemon Grid -->
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-64 overflow-y-auto">
-              <button
-                v-for="poke in availablePokemon" 
-                :key="poke.id" 
-                @click="togglePokemon(poke)"
-                type="button"
-                class="relative rounded-xl border bg-white p-3 text-left shadow-sm transition hover:scale-105 hover:border-indigo-300"
-                :class="isSelected(poke) ? 'border-emerald-400 ring-2 ring-emerald-200' : 'border-slate-200'"
-              >
-                <div v-if="isSelected(poke)" class="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white ring-2 ring-white">
-                  {{ getSlotIndex(poke) + 1 }}
-                </div>
-                <div class="flex items-center gap-2">
-                  <PokeSprite :name="poke.name" :type="poke.type" :size-class="'h-10 w-10'" :img-class="'h-10 w-10'" :rounded="'rounded-full'" />
-                  <div class="min-w-0 flex-1">
-                    <RarityText :rarity="poke.rarity" :label="poke.name" class="block truncate text-xs font-black" />
-                    <div class="text-[10px] font-bold text-slate-500">Lv.{{ poke.level }} · {{ poke.type }}</div>
-                  </div>
-                </div>
-                <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
-                  <div class="h-full rounded-full bg-emerald-500" :style="{ width: `${hpPct(poke)}%` }"></div>
-                </div>
-                <div class="mt-1 text-[10px] font-bold text-slate-500">HP {{ poke.hp }}/{{ poke.maxHp }}</div>
-              </button>
-            </div>
-
-            <div v-if="availablePokemon.length === 0" class="text-center py-8 text-slate-500">
-              <div class="text-4xl mb-2">😴</div>
-              <p>Không có Pokémon nào sẵn sàng chiến đấu</p>
-              <p class="text-sm">Hãy hồi phục HP tại Bệnh viện hoặc nhận Pokémon mới</p>
+              <div v-if="aliveCount < 1" class="mt-2 text-xs text-rose-600">Không có Pokémon nào còn HP! Hãy hồi phục tại Bệnh viện hoặc nhận Pokémon mới.</div>
+              <div v-else-if="aliveCount < maxTeamSize" class="mt-2 text-xs text-amber-600">Bạn chỉ có {{ aliveCount }} Pokémon còn HP — trận đấu sẽ diễn ra với đội hình ít hơn (bất lợi nhỏ).</div>
             </div>
 
             <!-- Start Button -->
-            <button 
-              v-if="selectedTeam.length === maxTeamSize"
+            <button
               @click="startMatchmaking"
-              :disabled="connecting"
+              :disabled="connecting || aliveCount < 1"
               class="w-full mt-4 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white font-bold text-lg hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {{ store.pvp.connected ? '🔍 Tìm Trận Đấu' : '🌐 Kết nối & Tìm Trận' }}
-            </button>
-            <button 
-              v-else
-              @click="startMatchmaking"
-              :disabled="connecting"
-              class="w-full mt-4 py-3 rounded-xl bg-slate-200 text-slate-400 font-bold text-lg cursor-not-allowed"
-            >
-              ⚠️ Cần chọn đủ 3 Pokémon
             </button>
           </div>
 
@@ -360,7 +263,7 @@ watch(() => inQueue.value, (val) => {
             </button>
           </div>
 
-          <!-- Đã tìm thấy đối thủ -->
+          <!-- Đã tìm thấy đối thủ (chuyển sang màn chọn đội hình) -->
           <div v-else-if="matched" class="space-y-4 text-center border-2 border-amber-400 bg-amber-50 rounded-2xl p-6">
             <div class="text-5xl animate-pulse">⚔️</div>
             <h3 class="text-xl font-bold text-slate-800">Đã tìm thấy đối thủ!</h3>
@@ -375,10 +278,7 @@ watch(() => inQueue.value, (val) => {
                 <PvpPlayerIdentity :player="matchData.opponent" />
               </div>
             </div>
-            <div class="mt-4 text-sm text-amber-700">Trận đấu sẽ bắt đầu trong giây lát...</div>
-            <button @click="acceptMatch" class="mt-4 w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-lg hover:brightness-110">
-              ✅ Sẵn Sàng Chiến Đấu
-            </button>
+            <div class="mt-4 text-sm text-amber-700">Đang mở màn chọn đội hình... Hãy chọn Pokémon trong 30 giây!</div>
           </div>
         </div>
 

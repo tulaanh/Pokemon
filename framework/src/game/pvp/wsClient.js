@@ -35,6 +35,8 @@ const callbacks = {
   onInviteReceived: null,
   onInviteSent: null,
   onInviteResult: null,
+  onPickOpponentUpdate: null,
+  onPickAborted: null,
 }
 
 const worldCallbacks = {
@@ -115,6 +117,12 @@ function handleMessage(event) {
         break
       case 'pvp_invite_result':
         callbacks.onInviteResult?.(payload)
+        break
+      case 'pick_opponent_update':
+        callbacks.onPickOpponentUpdate?.(payload)
+        break
+      case 'pick_aborted':
+        callbacks.onPickAborted?.(payload)
         break
       case 'pong':
         // Heartbeat response
@@ -256,9 +264,19 @@ export function clearWorldCallbacks() {
 // === API CHO UI ===
 
 // Tìm trận (matchmaking)
-export function findMatch(format = 'standard', team) {
+export function findMatch(format = 'standard') {
   store.pvp.matchmaking = true
-  send('matchmake', { format, team })
+  send('matchmake', { format })
+}
+
+// Gửi danh sách Pokémon còn sống khi mở màn chọn đội hình
+export function sendPickReady(battleId, roster) {
+  send('pick_ready', { battleId, roster })
+}
+
+// Cập nhật đội hình đang chọn trong pha chọn
+export function sendPickUpdate(battleId, team) {
+  send('pick_update', { battleId, team })
 }
 
 export function sendPvpInvite(targetId, format = 'standard', team = []) {

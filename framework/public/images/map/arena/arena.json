@@ -32,7 +32,7 @@
          "width":20,
          "x":0,
          "y":0
-        },
+        }, 
         {
          "data":[641, 642, 643, 641, 642, 643, 641, 642, 643, 641, 642, 643, 641, 642, 643, 641, 642, 643, 641, 642,
             689, 690, 691, 689, 690, 691, 689, 690, 691, 689, 690, 691, 689, 690, 691, 689, 690, 691, 689, 690,
@@ -59,41 +59,39 @@
          "name":"view_2",
          "opacity":1,
          "type":"tilelayer",
-         "visible":true,
+         "visible":false,
          "width":20,
          "x":0,
          "y":0
-        },
+        }, 
         {
          "draworder":"topdown",
          "id":8,
          "name":"doors",
          "objects":[
-          {
-           "height":16,
-           "id":1,
-           "name":"door_arena_out",
-           "opacity":1,
-           "properties":[
-            {
-             "name":"to",
-             "type":"string",
-             "value":"town"
-            },
-            {
-             "name":"toSpawn",
-             "type":"string",
-             "value":"arena_door"
-            }
-           ],
-           "rotation":0,
-           "type":"",
-           "visible":true,
-           "width":32,
-           "x":144,
-           "y":304
-          }
-         ],
+                {
+                 "height":16,
+                 "id":1,
+                 "name":"door_arena_out",
+                 "opacity":1,
+                 "properties":[
+                        {
+                         "name":"to",
+                         "type":"string",
+                         "value":"town"
+                        }, 
+                        {
+                         "name":"toSpawn",
+                         "type":"string",
+                         "value":"arena_door"
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":32,
+                 "x":144,
+                 "y":304
+                }],
          "opacity":1,
          "type":"objectgroup",
          "visible":true,

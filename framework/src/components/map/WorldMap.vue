@@ -829,8 +829,7 @@ function onGlobalKeydownCapture(e) {
 function onTabKeydown(e) {
   if (e.key === 'Tab' && !isEditableTarget(e.target)) {
     e.preventDefault()
-    infoPanelOpen.value = !infoPanelOpen.value
-    syncSceneLock()
+    emit('open', 'inventory')
   }
 }
 

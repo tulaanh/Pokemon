@@ -1,9 +1,19 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { INVENTORY_LIMIT } from '../game/data.js'
 import { store } from '../game/store.js'
 import { useCandyOnPokemon, useStoneOnPokemon, getPokeballCatalog } from '../game/shop.js'
 import { POKEMON_SPECIES } from '../game/data.js'
-import { showToast } from '../components/ui/toast.js'
+import {
+  getFormattedInventory,
+  filterAndSortTeam,
+  getPokemonUniqueId,
+  getSellPrice,
+  sellPokemon,
+  sellDuplicates,
+  getDuplicateSellInfo,
+} from '../game/inventory.js'
+import { showToast, confirmModal } from '../components/ui/toast.js'
 import PokeSprite from '../components/PokeSprite.vue'
 import CandyUseModal from '../components/shop/CandyUseModal.vue'
 import StoneUseModal from '../components/shop/StoneUseModal.vue'
@@ -21,6 +31,45 @@ const evolutionEvent = ref(null)
 
 // Sự kiện chọn kỹ năng mới (khi dùng Kẹo chạm mốc level chia hết cho 5)
 const skillEvent = ref(null)
+
+const processedList = computed(() => filterAndSortTeam())
+const displayNameByIndex = computed(() => {
+  const map = {}
+  getFormattedInventory().forEach((item) => {
+    map[item.index] = item.displayName
+  })
+  return map
+})
+const duplicateInfo = computed(() => getDuplicateSellInfo())
+const hasDuplicates = computed(() => duplicateInfo.value.count > 0)
+
+async function onQuickSell(poke) {
+  const price = getSellPrice(poke)
+  const ok = await confirmModal(`Bán ${poke.name} lấy ${price.toLocaleString('en-US')} Vàng?`, {
+    title: 'Bán Pokémon',
+    okText: 'Bán',
+    danger: true,
+  })
+  if (!ok) return
+
+  const result = sellPokemon(getPokemonUniqueId(poke), 'gold')
+  if (result.ok) showToast(result.message, 'success')
+  else showToast(result.message, 'error')
+}
+
+async function onSellDuplicates() {
+  const info = duplicateInfo.value
+  if (info.count === 0) return
+
+  const ok = await confirmModal(
+    `Bán ${info.count} Pokémon trùng lặp lấy ${info.gold.toLocaleString('en-US')} Vàng? (Giữ lại 1 con mỗi loại)`,
+    { title: 'Bán trùng lặp', okText: 'Bán hết', danger: true },
+  )
+  if (!ok) return
+
+  const result = sellDuplicates()
+  showToast(result.message, result.ok ? 'success' : 'error')
+}
 
 function onUseCandy(teamIdx) {
   const result = useCandyOnPokemon(teamIdx)
@@ -83,7 +132,53 @@ function onSkillLearned(message) {
 <template>
   <div class="mx-auto max-w-lg">
     <div class="app-card p-6 text-center">
-      <h3 class="text-lg font-bold text-slate-800">📦 Kho Vật Phẩm</h3>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h3 class="text-lg font-bold text-slate-800">📦 Kho Đồ</h3>
+        <span class="rounded-lg bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+          🎒 Pokémon: {{ store.team.length }}/{{ INVENTORY_LIMIT }}
+        </span>
+      </div>
+
+      <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-5">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h4 class="text-lg font-bold text-slate-700">🎒 Kho Pokémon</h4>
+          <button
+            v-if="hasDuplicates"
+            @click="onSellDuplicates"
+            class="rounded-lg border border-red-300 bg-red-50 px-2.5 py-1.5 text-xs font-bold text-red-600 transition hover:bg-red-100"
+          >
+            🗑️ Bán trùng ({{ duplicateInfo.count }})
+          </button>
+        </div>
+
+        <div v-if="store.team.length === 0" class="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-400">
+          Kho Pokémon đang trống.
+        </div>
+        <div v-else class="space-y-2">
+          <div
+            v-for="item in processedList"
+            :key="getPokemonUniqueId(item.pokemon)"
+            class="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3"
+          >
+            <div class="flex min-w-0 items-center gap-2">
+              <PokeSprite :name="item.pokemon.name" :type="item.pokemon.type" :size-class="'h-11 w-11'" :img-class="'h-11 w-11'" :rounded="'rounded-full'" />
+              <div class="min-w-0 text-left">
+                <div class="truncate text-sm font-bold text-slate-800">{{ displayNameByIndex[item.index] || item.pokemon.name }}</div>
+                <div class="text-xs text-slate-500">Lv.{{ item.pokemon.level }} · {{ item.pokemon.rarity?.name || 'Common' }} · {{ item.pokemon.type }}</div>
+                <div class="text-[11px] text-slate-400">HP {{ item.pokemon.hp }}/{{ item.pokemon.maxHp }} · ATK {{ item.pokemon.atk }}</div>
+              </div>
+            </div>
+            <button
+              @click="onQuickSell(item.pokemon)"
+              :disabled="store.team.length <= 1"
+              :title="`Bán lấy ${getSellPrice(item.pokemon).toLocaleString('en-US')} Vàng`"
+              class="shrink-0 rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-xs font-bold text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              🗑️ Bán nhanh
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-5">
         <h4 class="text-lg font-bold text-purple-600">🍬 Kẹo Kinh Nghiệm</h4>

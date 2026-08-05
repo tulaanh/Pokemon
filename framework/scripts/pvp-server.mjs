@@ -10,6 +10,7 @@ import { WebSocket, WebSocketServer } from 'ws'
 const PORT = Number(process.env.PORT || process.env.PVP_PORT || 8080)
 const PATH = '/pvp'
 const TURN_MS = 30_000
+const PICK_MS = 30_000
 const MAX_TEAM_SIZE = 3
 
 let nextBattleNo = 1
@@ -77,6 +78,7 @@ function normalizePokemon(p, index) {
     spe: Number(p.spe || 10),
     type: p.type || p.types?.[0] || 'Normal',
     types: p.types || (p.type ? [p.type] : ['Normal']),
+    rarity: p.rarity,
     skills: Array.isArray(p.skills) ? p.skills : [],
   }
 }
@@ -181,7 +183,7 @@ function broadcastQueue() {
 function enqueue(client, format, team) {
   removeFromQueue(client)
   client.format = format || 'standard'
-  client.team = team.map(normalizePokemon)
+  if (Array.isArray(team) && team.length) client.team = team.map(normalizePokemon)
   queue.push({ client, joinedAt: Date.now() })
   broadcastQueue()
   tryMatchmaking()
@@ -193,7 +195,7 @@ function tryMatchmaking() {
     const b = queue.shift().client
     if (!clients.has(a.ws) || !clients.has(b.ws)) continue
     if (a.battleId || b.battleId) continue
-    startBattle(a, b)
+    startPick(a, b)
   }
   broadcastQueue()
 }
@@ -212,6 +214,20 @@ function makePublicTeam(client) {
     maxHp: p.maxHp,
     type: p.type,
     types: p.types,
+  }))
+}
+
+// Đội hình hiển thị trong pha chọn (không lộ chỉ số) — tên + cấp + hệ + độ hiếm
+function publicPickTeam(client) {
+  return (client.team || []).map((p, index) => ({
+    index,
+    id: p.id,
+    name: p.name,
+    speciesId: p.speciesId,
+    level: p.level,
+    type: p.type,
+    types: p.types,
+    rarity: p.rarity,
   }))
 }
 
@@ -362,6 +378,7 @@ function startBattle(a, b) {
   const battle = {
     id: battleId,
     players: [a, b],
+    phase: 'battle',
     current: firstActor(a, b),
     turn: 1,
     deadline: Date.now() + TURN_MS,
@@ -378,6 +395,96 @@ function startBattle(a, b) {
   for (const player of battle.players) {
     send(player.ws, 'battle_start', {
       battleId,
+      opponent: publicPlayer(battle.players.find((p) => p !== player)),
+      state: makeBattleStateFor(battle, player),
+      nextActor: nextActorFor(battle, player),
+      deadline: battle.deadline,
+    })
+  }
+}
+
+function cleanupBattle(battle) {
+  if (battle.pickTimer) {
+    clearTimeout(battle.pickTimer)
+    battle.pickTimer = null
+  }
+  for (const player of battle.players) player.battleId = null
+  battles.delete(battle.id)
+}
+
+// Bắt đầu pha chọn đội hình sau khi match (30 giây)
+function startPick(a, b) {
+  const battleId = shortId(`battle_${nextBattleNo++}`)
+  a.activeIndex = 0
+  b.activeIndex = 0
+  a.team = []
+  b.team = []
+  a.roster = []
+  b.roster = []
+
+  const battle = {
+    id: battleId,
+    players: [a, b],
+    phase: 'pick',
+    pickDeadline: Date.now() + PICK_MS,
+    pickTimer: null,
+    log: [`Trận đấu giữa ${publicPlayer(a).name} và ${publicPlayer(b).name} bắt đầu!`],
+  }
+
+  a.battleId = battleId
+  b.battleId = battleId
+  battles.set(battleId, battle)
+
+  const pickInfo = (client, opp) => ({
+    opponent: publicPlayer(opp),
+    format: client.format,
+    battleId,
+    pickDeadline: battle.pickDeadline,
+    pickSize: MAX_TEAM_SIZE,
+  })
+  send(a.ws, 'matched', pickInfo(a, b))
+  send(b.ws, 'matched', pickInfo(b, a))
+
+  battle.pickTimer = setTimeout(() => finalizePick(battle), PICK_MS)
+}
+
+// Kết thúc pha chọn → tự động vào trận
+function finalizePick(battle) {
+  if (!battle || battle.phase !== 'pick') return
+  battle.pickTimer = null
+
+  let canStart = true
+  for (const player of battle.players) {
+    if (!Array.isArray(player.team) || player.team.length === 0) {
+      player.team = (player.roster || []).slice(0, MAX_TEAM_SIZE).map(normalizePokemon)
+    }
+    if (!Array.isArray(player.team) || player.team.length === 0) {
+      canStart = false
+    } else {
+      player.activeIndex = 0
+    }
+  }
+
+  if (!canStart) {
+    for (const player of battle.players) {
+      send(player.ws, 'pick_aborted', {
+        battleId: battle.id,
+        reason: 'no_team',
+        message: 'Một bên chưa có Pokémon nào để chiến đấu. Trận đấu bị hủy.',
+      })
+    }
+    cleanupBattle(battle)
+    return
+  }
+
+  battle.phase = 'battle'
+  battle.current = firstActor(battle.players[0], battle.players[1])
+  battle.turn = 1
+  battle.deadline = Date.now() + TURN_MS
+
+  for (const player of battle.players) {
+    send(player.ws, 'battle_start', {
+      battleId: battle.id,
       opponent: publicPlayer(battle.players.find((p) => p !== player)),
       state: makeBattleStateFor(battle, player),
       nextActor: nextActorFor(battle, player),
@@ -428,6 +535,10 @@ function handleTurnAction(client, payload) {
   const battle = battles.get(payload?.battleId || client.battleId)
   if (!battle) {
     send(client.ws, 'error', { code: 'NO_BATTLE', message: 'Chưa có trận PvP đang chạy.' })
+    return
+  }
+  if (battle.phase !== 'battle') {
+    send(client.ws, 'error', { code: 'NOT_IN_BATTLE', message: 'Trận đấu chưa bắt đầu.' })
     return
   }
   if (battle.current !== client) {
@@ -481,6 +592,17 @@ function disconnectClient(client) {
   const battle = battles.get(client.battleId)
   if (!battle) return
   const opponent = battle.players.find((p) => p !== client)
+  if (battle.phase === 'pick') {
+    if (opponent?.ws?.readyState === WebSocket.OPEN) {
+      send(opponent.ws, 'pick_aborted', {
+        battleId: battle.id,
+        reason: 'disconnect',
+        message: `${publicPlayer(client).name} đã mất kết nối trong lúc chọn đội hình. Trận đấu bị hủy.`,
+      })
+    }
+    cleanupBattle(battle)
+    return
+  }
   if (opponent?.ws?.readyState === WebSocket.OPEN) {
     send(opponent.ws, 'opponent_disconnected', { battleId: battle.id })
     endBattle(battle, opponent, 'disconnect')
@@ -500,6 +622,7 @@ wss.on('connection', (ws, req) => {
     level: 1,
     elo: 1000,
     team: [],
+    roster: [],
     format: 'standard',
     activeIndex: 0,
     battleId: null,
@@ -529,16 +652,52 @@ wss.on('connection', (ws, req) => {
         send(ws, 'pong')
         break
       case 'matchmake': {
-        const error = validateTeam(payload.team)
-        if (error) {
-          send(ws, 'error', { code: 'TEAM_INVALID', message: error })
-          return
-        }
         if (client.battleId) {
           send(ws, 'error', { code: 'ALREADY_IN_BATTLE', message: 'Bạn đang trong một trận PvP.' })
           return
         }
         enqueue(client, payload.format, payload.team)
+        break
+      }
+      case 'pick_ready': {
+        const battle = battles.get(payload?.battleId || client.battleId)
+        if (!battle || battle.phase !== 'pick' || !battle.players.includes(client)) break
+        client.roster = (Array.isArray(payload.roster) ? payload.roster : []).map(normalizePokemon)
+        const opponent = battle.players.find((p) => p !== client)
+        if (opponent && Array.isArray(opponent.team) && opponent.team.length) {
+          send(client.ws, 'pick_opponent_update', { battleId: battle.id, team: publicPickTeam(opponent) })
+        }
+        break
+      }
+      case 'pick_update': {
+        const battle = battles.get(payload?.battleId || client.battleId)
+        if (!battle) {
+          send(ws, 'error', { code: 'NO_PICK', message: 'Không tìm thấy trận đang chọn đội hình.' })
+          break
+        }
+        if (battle.phase !== 'pick') {
+          send(ws, 'error', { code: 'PICK_ENDED', message: 'Giai đoạn chọn đội hình đã kết thúc.' })
+          break
+        }
+        if (!battle.players.includes(client)) {
+          send(ws, 'error', { code: 'PICK_INVALID', message: 'Bạn không thuộc trận này.' })
+          break
+        }
+        const team = Array.isArray(payload.team) ? payload.team : []
+        if (team.length < 1 || team.length > MAX_TEAM_SIZE) {
+          send(ws, 'error', { code: 'TEAM_INVALID', message: `Chọn từ 1 đến ${MAX_TEAM_SIZE} Pokémon.` })
+          break
+        }
+        const rosterIds = new Set((client.roster || []).map((r) => String(r.id)))
+        if (rosterIds.size > 0 && team.some((p) => p && !rosterIds.has(String(p.id)))) {
+          send(ws, 'error', { code: 'TEAM_INVALID', message: 'Đội hình chứa Pokémon không hợp lệ.' })
+          break
+        }
+        client.team = team.map(normalizePokemon)
+        const opponent = battle.players.find((p) => p !== client)
+        if (opponent) {
+          send(opponent.ws, 'pick_opponent_update', { battleId: battle.id, team: publicPickTeam(client) })
+        }
         break
       }
       case 'cancel_matchmake':
@@ -557,7 +716,23 @@ wss.on('connection', (ws, req) => {
       case 'reconnect':
         if (client.battleId) {
           const battle = battles.get(client.battleId)
-          if (battle) broadcastBattle(battle)
+          if (battle) {
+            if (battle.phase === 'pick') {
+              const opponent = battle.players.find((p) => p !== client)
+              if (opponent) {
+                send(client.ws, 'matched', {
+                  opponent: publicPlayer(opponent),
+                  format: client.format,
+                  battleId: battle.id,
+                  pickDeadline: battle.pickDeadline,
+                  pickSize: MAX_TEAM_SIZE,
+                })
+                send(client.ws, 'pick_opponent_update', { battleId: battle.id, team: publicPickTeam(opponent) })
+              }
+            } else {
+              broadcastBattle(battle)
+            }
+          }
         }
         break
       case 'world_join':

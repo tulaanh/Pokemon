@@ -20,6 +20,7 @@ import WildBattleView from './views/WildBattleView.vue'
 import PvpLobbyView from './views/PvpLobbyView.vue'
 import PvpRankingView from './views/PvpRankingView.vue'
 import PvpHistoryView from './views/PvpHistoryView.vue'
+import PvpPickView from './views/PvpPickView.vue'
 import PvpBattleView from './views/PvpBattleView.vue'
 import { getOnboardingStage, STORY_STAGES } from './game/story.js'
 import { categories } from './game/modes.js'
@@ -45,6 +46,7 @@ const MODE_VIEWS = {
   pvp_lobby: PvpLobbyView,
   pvp_ranking: PvpRankingView,
   pvp_history: PvpHistoryView,
+  pvp_pick: PvpPickView,
   pvp_battle: PvpBattleView,
 }
 
@@ -59,6 +61,7 @@ const activeModeInfo = computed(() => {
   }
   // Trận huấn luyện chỉ mở từ cốt truyện (không nằm trong menu chính)
   if (activeMode.value === 'training') return { icon: '🎓', label: 'Trận Huấn Luyện' }
+  if (activeMode.value === 'pvp_pick') return { icon: '⚔️', label: 'Chọn Đội Hình PvP' }
   return null
 })
 
@@ -83,7 +86,7 @@ function handleOpenMode(mode, ...args) {
 }
 
 // --- NHẠC NỀN THEO NGỮ CẢNH ---
-const BATTLE_MODES = ['campaign', 'story', 'gym', 'tower', 'training', 'pvp_lobby', 'pvp_battle']
+const BATTLE_MODES = ['campaign', 'story', 'gym', 'tower', 'training', 'pvp_lobby', 'pvp_pick', 'pvp_battle']
 
 function trackForMode(mode) {
   if (mode === 'gacha') return 'gacha'
