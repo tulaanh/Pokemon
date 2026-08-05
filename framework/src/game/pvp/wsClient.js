@@ -11,6 +11,7 @@ const WS_URL = import.meta.env.VITE_PVP_WS_URL || 'ws://localhost:8080/pvp'
 
 // Trạng thái kết nối
 let ws = null
+let connectPromise = null
 let reconnectAttempts = 0
 const MAX_RECONNECT_ATTEMPTS = 5
 const RECONNECT_DELAY_MS = 3000
@@ -31,6 +32,14 @@ const callbacks = {
   onQueueUpdate: null,
   onOpponentDisconnected: null,
   onErrorMsg: null,
+}
+
+const worldCallbacks = {
+  onWorldSnapshot: null,
+  onWorldPlayerJoined: null,
+  onWorldPlayerMoved: null,
+  onWorldPlayerLeft: null,
+  onWorldError: null,
 }
 
 // Gửi message nếu kết nối đang mở
@@ -98,6 +107,22 @@ function handleMessage(event) {
       case 'pong':
         // Heartbeat response
         break
+      case 'world_snapshot':
+        worldCallbacks.onWorldSnapshot?.(payload)
+        break
+      case 'world_player_joined':
+        worldCallbacks.onWorldPlayerJoined?.(payload)
+        break
+      case 'world_player_moved':
+        worldCallbacks.onWorldPlayerMoved?.(payload)
+        break
+      case 'world_player_left':
+        worldCallbacks.onWorldPlayerLeft?.(payload)
+        break
+      case 'world_error':
+        worldCallbacks.onWorldError?.(payload)
+        showToast(`❌ ${payload.message || 'Không thể đồng bộ người chơi ở arena.'}`, 'error')
+        break
       default:
         console.warn('[PvP WS] Unknown message type:', type)
     }
@@ -108,17 +133,15 @@ function handleMessage(event) {
 
 // Kết nối WebSocket
 export function connectPvP() {
-  return new Promise((resolve, reject) => {
-    if (ws?.readyState === WebSocket.OPEN) {
-      resolve()
-      return
-    }
-    if (ws?.readyState === WebSocket.CONNECTING) {
-      reject(new Error('Đang kết nối server PvP'))
-      return
-    }
+  if (ws?.readyState === WebSocket.OPEN) {
+    return Promise.resolve()
+  }
+  if (ws?.readyState === WebSocket.CONNECTING && connectPromise) {
+    return connectPromise
+  }
 
-    manualDisconnect = false
+  manualDisconnect = false
+  connectPromise = new Promise((resolve, reject) => {
     let settled = false
     ws = new WebSocket(WS_URL)
 
@@ -159,8 +182,11 @@ export function connectPvP() {
         reject(new Error(`Server PvP chưa hoạt động tại ${WS_URL}`))
       }
       if (shouldReconnect) attemptReconnect()
+      connectPromise = null
     }
   })
+
+  return connectPromise
 }
 
 // Thử kết nối lại
@@ -202,6 +228,15 @@ export function clearPvPCallbacks() {
   Object.keys(callbacks).forEach(k => { callbacks[k] = null })
 }
 
+// Đăng ký callbacks cho chế độ đi lại trong arena
+export function setWorldCallbacks(cb) {
+  Object.assign(worldCallbacks, cb)
+}
+
+export function clearWorldCallbacks() {
+  Object.keys(worldCallbacks).forEach(k => { worldCallbacks[k] = null })
+}
+
 // === API CHO UI ===
 
 // Tìm trận (matchmaking)
@@ -229,6 +264,31 @@ export function forfeitBattle(battleId) {
 // Kết nối lại vào trận đang chơi
 export function reconnectBattle(battleId) {
   send('reconnect', { battleId, playerId: store.gameState.player.playerName || 'guest' })
+}
+
+// Vào/ra arena realtime
+export function joinWorldMap(mapId, position = {}) {
+  return send('world_join', {
+    mapId,
+    x: Number(position.x || 0),
+    y: Number(position.y || 0),
+    facing: position.facing || 'down',
+    moving: !!position.moving,
+  })
+}
+
+export function sendWorldMove(mapId, position = {}) {
+  return send('world_move', {
+    mapId,
+    x: Number(position.x || 0),
+    y: Number(position.y || 0),
+    facing: position.facing || 'down',
+    moving: !!position.moving,
+  })
+}
+
+export function leaveWorldMap(mapId) {
+  return send('world_leave', { mapId })
 }
 
 // Ngắt kết nối hoàn toàn

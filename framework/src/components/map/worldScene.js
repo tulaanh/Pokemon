@@ -85,6 +85,7 @@ export class WorldScene extends Phaser.Scene {
     this.encounterState.spawnTimer = Math.max(0, (this.encounterConfig.intervalMs || 30000) - 5000)
     this.encounterState.despawnTimer = 0
     this.encounterTickTimer = 0
+    this.remotePlayers = new Map()
   }
 
   // Khóa/ mở khóa di chuyển nhân vật (dùng khi hội thoại onboarding đang mở)
@@ -119,6 +120,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   create() {
+    this.clearRemotePlayers()
     if (this.mapInfo.kind === 'tiled') {
       this.buildTiled()
     } else {
@@ -654,8 +656,138 @@ export class WorldScene extends Phaser.Scene {
     }
 
     this.drawDebugBox()
+    this.updateRemotePlayers(delta)
     this.checkInteraction()
     this.callbacks.onPlayerPos?.(this.player.x, this.player.y)
+  }
+
+  getRemotePlayerId(player) {
+    return player?.id || player?.playerId || player?.name || null
+  }
+
+  buildRemotePlayer(player) {
+    const id = this.getRemotePlayerId(player)
+    if (!id || this.remotePlayers?.has(id)) return this.remotePlayers?.get(id) || null
+
+    const sprite = this.physics.add.sprite(player.x || 0, player.y || 0, 'player', 0)
+    const s = this.mapInfo.playerScale || 1
+    sprite.setScale(s)
+    sprite.setDepth(900000)
+    sprite.body.setAllowGravity(false)
+    sprite.body.setSize(10 * s, 20 * s, true)
+    sprite.body.setOffset(3 * s, 12 * s)
+    sprite.body.setImmovable(true)
+    sprite.body.setAllowGravity(false)
+    sprite.body.moves = false
+
+    const label = this.add.text(sprite.x, sprite.y - 26 * s, player.name || 'Guest', {
+      fontSize: `${11 * s}px`,
+      fontFamily: 'system-ui, sans-serif',
+      color: '#ffffff',
+      backgroundColor: 'rgba(15, 23, 42, 0.72)',
+      padding: { x: 4, y: 2 },
+    }).setOrigin(0.5, 1).setDepth(900001)
+
+    const aura = this.add.circle(sprite.x, sprite.y + 6 * s, 10 * s, 0x60a5fa, 0.18)
+      .setDepth(899999)
+
+    const remote = {
+      id,
+      sprite,
+      label,
+      aura,
+      targetX: Number(player.x || 0),
+      targetY: Number(player.y || 0),
+      facing: player.facing || 'down',
+      moving: !!player.moving,
+      name: player.name || 'Guest',
+    }
+    this.remotePlayers.set(id, remote)
+    this.applyRemoteFacing(remote)
+    return remote
+  }
+
+  applyRemoteFacing(remote) {
+    if (!remote?.sprite) return
+    const s = this.mapInfo.playerScale || 1
+    const { sprite } = remote
+    if (remote.facing === 'up') {
+      sprite.setFrame(1)
+      sprite.flipX = false
+    } else if (remote.facing === 'left') {
+      sprite.setFrame(2)
+      sprite.flipX = false
+    } else if (remote.facing === 'right') {
+      sprite.setFrame(2)
+      sprite.flipX = true
+    } else {
+      sprite.setFrame(0)
+      sprite.flipX = false
+    }
+    sprite.setScale(s)
+  }
+
+  upsertRemotePlayer(player) {
+    const id = this.getRemotePlayerId(player)
+    if (!id || id === this.player?.name) return
+    const remote = this.remotePlayers.get(id) || this.buildRemotePlayer(player)
+    if (!remote) return
+
+    remote.targetX = Number(player.x || 0)
+    remote.targetY = Number(player.y || 0)
+    remote.facing = player.facing || remote.facing || 'down'
+    remote.moving = !!player.moving
+    remote.name = player.name || remote.name
+    remote.label?.setText(remote.name)
+    this.applyRemoteFacing(remote)
+
+    if (remote.sprite && !remote.sprite.active) {
+      remote.sprite.setActive(true).setVisible(true)
+    }
+    remote.aura?.setVisible(true)
+  }
+
+  removeRemotePlayer(playerId) {
+    const id = typeof playerId === 'string' ? playerId : this.getRemotePlayerId(playerId)
+    if (!id) return
+    const remote = this.remotePlayers.get(id)
+    if (!remote) return
+    remote.sprite?.destroy()
+    remote.label?.destroy()
+    remote.aura?.destroy()
+    this.remotePlayers.delete(id)
+  }
+
+  clearRemotePlayers() {
+    for (const remote of this.remotePlayers?.values?.() || []) {
+      remote.sprite?.destroy()
+      remote.label?.destroy()
+      remote.aura?.destroy()
+    }
+    if (this.remotePlayers) this.remotePlayers.clear()
+  }
+
+  updateRemotePlayers(delta) {
+    if (!this.remotePlayers?.size) return
+    const lerp = Math.min(1, delta / 100)
+    for (const remote of this.remotePlayers.values()) {
+      if (!remote.sprite) continue
+      remote.sprite.x += (remote.targetX - remote.sprite.x) * lerp
+      remote.sprite.y += (remote.targetY - remote.sprite.y) * lerp
+      remote.label?.setPosition(remote.sprite.x, remote.sprite.y - 26 * (this.mapInfo.playerScale || 1))
+      remote.aura?.setPosition(remote.sprite.x, remote.sprite.y + 6 * (this.mapInfo.playerScale || 1))
+      if (remote.moving) {
+        const animKey = remote.facing === 'left' ? 'walk-left' : `walk-${remote.facing}`
+        if (animKey && this.anims.exists(animKey) && remote.sprite.anims?.currentAnim?.key !== animKey) {
+          remote.sprite.play(animKey, true)
+        }
+      } else {
+        if (remote.sprite.anims?.isPlaying) remote.sprite.stop()
+        if (remote.facing === 'down') remote.sprite.setFrame(0)
+        else if (remote.facing === 'up') remote.sprite.setFrame(1)
+        else remote.sprite.setFrame(2)
+      }
+    }
   }
 
   // Vẽ lại hitbox mỗi frame (chỉ dùng để debug): body vật lý (xanh) +

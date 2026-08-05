@@ -16,6 +16,7 @@ let nextBattleNo = 1
 const clients = new Map()
 const queue = []
 const battles = new Map()
+const worldRooms = new Map()
 
 function send(ws, type, payload = {}) {
   if (ws?.readyState !== WebSocket.OPEN) return false
@@ -40,6 +41,18 @@ function publicPlayer(client) {
     id: client.playerId || client.id,
     name: client.playerId || 'Guest',
     elo: client.elo,
+  }
+}
+
+function publicWorldPlayer(client) {
+  return {
+    id: client.playerId || client.id,
+    name: client.playerId || 'Guest',
+    x: client.world?.x ?? 0,
+    y: client.world?.y ?? 0,
+    facing: client.world?.facing || 'down',
+    moving: !!client.world?.moving,
+    mapId: client.world?.mapId || null,
   }
 }
 
@@ -138,6 +151,106 @@ function makeBattleStateFor(battle, viewer) {
     opponentActive: activePokemon(opponent),
     log: battle.log.slice(0, 20),
   }
+}
+
+function getWorldRoom(mapId) {
+  if (!worldRooms.has(mapId)) {
+    worldRooms.set(mapId, new Set())
+  }
+  return worldRooms.get(mapId)
+}
+
+function removeFromWorldRoom(client) {
+  const mapId = client.world?.mapId
+  if (!mapId) return
+  const room = worldRooms.get(mapId)
+  if (!room) return
+  room.delete(client)
+  if (room.size === 0) {
+    worldRooms.delete(mapId)
+  }
+}
+
+function broadcastWorld(mapId, type, payload, exceptClient = null) {
+  const room = worldRooms.get(mapId)
+  if (!room) return
+  for (const client of room) {
+    if (client === exceptClient) continue
+    send(client.ws, type, payload)
+  }
+}
+
+function sendWorldSnapshot(client, mapId) {
+  const room = worldRooms.get(mapId)
+  const players = [...(room || [])]
+    .filter((other) => other !== client)
+    .map((other) => publicWorldPlayer(other))
+  send(client.ws, 'world_snapshot', {
+    mapId,
+    players,
+  })
+}
+
+function joinWorld(client, payload = {}) {
+  const mapId = payload.mapId
+  if (!mapId) {
+    send(client.ws, 'world_error', { code: 'WORLD_INVALID', message: 'Thiếu mapId khi vào arena.' })
+    return
+  }
+
+  if (client.world?.mapId && client.world.mapId !== mapId) {
+    removeFromWorldRoom(client)
+    broadcastWorld(client.world.mapId, 'world_player_left', { player: publicWorldPlayer(client) }, client)
+  }
+
+  client.world = {
+    mapId,
+    x: Number(payload.x || 0),
+    y: Number(payload.y || 0),
+    facing: payload.facing || 'down',
+    moving: !!payload.moving,
+    lastSeen: Date.now(),
+  }
+
+  const room = getWorldRoom(mapId)
+  const isNew = !room.has(client)
+  room.add(client)
+
+  sendWorldSnapshot(client, mapId)
+  if (isNew) {
+    broadcastWorld(mapId, 'world_player_joined', { player: publicWorldPlayer(client) }, client)
+  }
+}
+
+function moveWorld(client, payload = {}) {
+  const mapId = payload.mapId || client.world?.mapId
+  if (!mapId) return
+  if (client.world?.mapId && client.world.mapId !== mapId) {
+    joinWorld(client, payload)
+    return
+  }
+
+  client.world = {
+    mapId,
+    x: Number(payload.x || 0),
+    y: Number(payload.y || 0),
+    facing: payload.facing || 'down',
+    moving: !!payload.moving,
+    lastSeen: Date.now(),
+  }
+
+  broadcastWorld(mapId, 'world_player_moved', { player: publicWorldPlayer(client) }, client)
+}
+
+function leaveWorld(client, payload = {}) {
+  const mapId = payload.mapId || client.world?.mapId
+  if (!mapId) return
+  const wasInRoom = client.world?.mapId === mapId
+  if (wasInRoom) {
+    removeFromWorldRoom(client)
+    broadcastWorld(mapId, 'world_player_left', { player: publicWorldPlayer(client) }, client)
+  }
+  if (!payload.keepWorldState) client.world = null
 }
 
 function nextActorFor(battle, viewer) {
@@ -285,6 +398,7 @@ function handleTurnAction(client, payload) {
 
 function disconnectClient(client) {
   removeFromQueue(client)
+  leaveWorld(client, { mapId: client.world?.mapId, keepWorldState: false })
   if (!client.battleId) return
 
   const battle = battles.get(client.battleId)
@@ -310,6 +424,7 @@ wss.on('connection', (ws, req) => {
     format: 'standard',
     activeIndex: 0,
     battleId: null,
+    world: null,
   }
   clients.set(ws, client)
   console.log(`[PvP] Client connected: ${client.id} from ${req.socket.remoteAddress}`)
@@ -353,6 +468,15 @@ wss.on('connection', (ws, req) => {
           const battle = battles.get(client.battleId)
           if (battle) broadcastBattle(battle)
         }
+        break
+      case 'world_join':
+        joinWorld(client, payload)
+        break
+      case 'world_move':
+        moveWorld(client, payload)
+        break
+      case 'world_leave':
+        leaveWorld(client, payload)
         break
       default:
         send(ws, 'error', { code: 'UNKNOWN_MESSAGE', message: `Server chưa hỗ trợ message: ${type}` })

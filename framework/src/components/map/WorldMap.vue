@@ -12,6 +12,15 @@ import { showToast } from '../ui/toast.js'
 import { openSettings } from '../ui/settingsModal.js'
 import { beginScreenTransition, endScreenTransition, setScreenProgress } from '../../game/screenTransition.js'
 import { getOnboardingStage, setOnboardingStage, STORY_STAGES } from '../../game/story.js'
+import {
+  connectPvP,
+  isConnected,
+  joinWorldMap,
+  leaveWorldMap,
+  sendWorldMove,
+  setWorldCallbacks,
+  clearWorldCallbacks,
+} from '../../game/pvp/wsClient.js'
 import OakLabDialogue from '../onboarding/OakLabDialogue.vue'
 import HomeStartDialogue from '../onboarding/HomeStartDialogue.vue'
 import HospitalStoryDialogue from '../onboarding/HospitalStoryDialogue.vue'
@@ -37,6 +46,9 @@ const cameraY = ref(0)
 const viewportW = ref(0)
 const viewportH = ref(0)
 const infoPanelOpen = ref(false) // bảng thông tin trượt trái, bấm Tab để bật/tắt
+const arenaOnline = ref(false)
+const arenaPlayers = ref(0)
+const arenaConnectionHint = ref('')
 
 const interactMenuOpen = ref(false) // bảng chọn khi gần ô tương tác (cửa, NPC)
 const interactMenu = ref(null) // dữ liệu bảng chọn hiện tại
@@ -45,6 +57,10 @@ const npcDialogue = ref(null) // dữ liệu hội thoại NPC hiện tại
 
 let game = null
 let resizeObserver = null
+let arenaJoinPending = false
+let arenaJoined = false
+let arenaMoveLastSent = 0
+let arenaLastSentPos = { x: null, y: null, facing: 'down', moving: false }
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
 
@@ -119,6 +135,8 @@ const mapLocations = computed(() =>
 )
 // Mục tiêu nhiệm vụ (spot type 'quest') — hiện chấm đỏ nhấp nháy, sẵn sàng cho tính năng định vị quest
 const questLocations = computed(() => mapSpots.value.filter((s) => s.type === 'quest'))
+
+const isArenaMap = computed(() => currentMapId.value === 'arena')
 
 // Pokémon hoang dã đang xuất hiện — { x, y, mapId } (px thế giới, tâm tile)
 const wildDot = ref(null)
@@ -195,6 +213,64 @@ function syncSceneLock() {
       interactMenuOpen.value ||
       npcDialogueOpen.value,
   )
+}
+
+function getScene() {
+  return game?.scene?.getScene('WorldScene')
+}
+
+async function ensureArenaPresence(force = false) {
+  if (!isArenaMap.value) return
+  if (!force && arenaJoined) return
+  if (arenaJoinPending) return
+
+  arenaJoinPending = true
+  try {
+    if (!isConnected()) {
+      await connectPvP()
+    }
+    if (!isConnected()) {
+      arenaOnline.value = false
+      arenaConnectionHint.value = 'Chưa kết nối server PvP'
+      return
+    }
+
+    const scene = getScene()
+    const x = scene?.player?.x ?? store.worldPos?.x ?? mapInfo.value.spawn.x
+    const y = scene?.player?.y ?? store.worldPos?.y ?? mapInfo.value.spawn.y
+    const facing = scene?.lastFacing || 'down'
+
+    joinWorldMap('arena', { x, y, facing, moving: false })
+    arenaJoined = true
+    arenaOnline.value = true
+    arenaConnectionHint.value = 'Đang ở arena online'
+    arenaLastSentPos = { x, y, facing, moving: false }
+  } catch (e) {
+    arenaOnline.value = false
+    arenaConnectionHint.value = e?.message || 'Không thể vào arena online'
+  } finally {
+    arenaJoinPending = false
+  }
+}
+
+function leaveArenaPresence() {
+  if (!arenaJoined) return
+  leaveWorldMap('arena')
+  arenaJoined = false
+  arenaOnline.value = false
+  arenaPlayers.value = 0
+  arenaConnectionHint.value = ''
+}
+
+function sendArenaMove({ x, y, facing = 'down', moving = false }) {
+  if (!isArenaMap.value || !arenaJoined || !isConnected()) return
+  const now = Date.now()
+  const movedFar = Math.hypot((x ?? 0) - (arenaLastSentPos.x ?? x ?? 0), (y ?? 0) - (arenaLastSentPos.y ?? y ?? 0)) >= 2
+  const stateChanged = facing !== arenaLastSentPos.facing || moving !== arenaLastSentPos.moving
+  if (!movedFar && !stateChanged && now - arenaMoveLastSent < 120) return
+  arenaMoveLastSent = now
+  arenaLastSentPos = { x, y, facing, moving }
+  sendWorldMove('arena', { x, y, facing, moving })
 }
 
 function openOakDialogue() {
@@ -499,6 +575,42 @@ function openNpcDialogue(npcId, mode) {
   syncSceneLock()
 }
 
+function registerWorldCallbacks() {
+  setWorldCallbacks({
+    onWorldSnapshot: ({ mapId, players }) => {
+      if (mapId !== 'arena') return
+      arenaPlayers.value = Array.isArray(players) ? players.length : 0
+      const scene = getScene()
+      scene?.clearRemotePlayers?.()
+      for (const player of players || []) {
+        scene?.upsertRemotePlayer?.(player)
+      }
+    },
+    onWorldPlayerJoined: ({ player }) => {
+      if (player?.mapId !== 'arena') return
+      arenaPlayers.value += 1
+      getScene()?.upsertRemotePlayer?.(player)
+    },
+    onWorldPlayerMoved: ({ player }) => {
+      if (player?.mapId !== 'arena') return
+      getScene()?.upsertRemotePlayer?.(player)
+    },
+    onWorldPlayerLeft: ({ player }) => {
+      if (player?.mapId !== 'arena') return
+      arenaPlayers.value = Math.max(0, arenaPlayers.value - 1)
+      getScene()?.removeRemotePlayer?.(player?.id)
+    },
+    onWorldError: ({ message }) => {
+      arenaOnline.value = false
+      arenaConnectionHint.value = message || 'Không thể đồng bộ arena'
+    },
+  })
+}
+
+function unregisterWorldCallbacks() {
+  clearWorldCallbacks()
+}
+
 // --- LIFECYCLE ---
 function destroyGame() {
   resizeObserver?.disconnect()
@@ -522,63 +634,75 @@ async function startGame() {
   const map = getMap(currentMapId.value)
 
   setWorldRuntime({
-      callbacks: {
-        onOpen,
-        onShowPopover: (loc) => { selectedLocation.value = loc },
-        onPlayerPos: (x, y) => {
-          playerX.value = x
-          playerY.value = y
-          store.worldPos.x = Math.round(x)
-          store.worldPos.y = Math.round(y)
-          cameraX.value = x - viewportW.value / 2
-          cameraY.value = y - viewportH.value / 2
-        },
-        onInRange: (id) => {
-          inRangeLocId.value = id
-          if (selectedLocation.value && id !== selectedLocation.value.id) {
-            selectedLocation.value = null
-          }
-        },
-        onMapInfo: (mapId) => {
-          currentMapId.value = mapId
-          // Tự mở hội thoại theo stage cốt truyện: nhà (stage 0) → lab (stage 0)
-          if (onboardingStage.value === STORY_STAGES.HOME && mapId === 'house' && !homeTalkShown.value) {
-            openHomeTalk()
-          } else if (onboardingStage.value === STORY_STAGES.HOME && mapId === 'lab' && !oakDialogueOpen.value) {
-            openOakDialogue()
-          } else {
-            syncSceneLock()
-          }
-          // Scene đã dựng xong (create() hoàn tất) → ẩn màn hình chuyển cảnh
-          setScreenProgress(100)
-          endScreenTransition()
-        },
-        onLoadProgress: (v) => setScreenProgress(v * 100),
-        onMapChange,
-        onTileInteract,
-        onWildSpawn: (data) => {
-          // Cập nhật chấm đỏ minimap tại vị trí Pokémon hoang dã xuất hiện
-          wildDot.value = data
-        },
-        onWildClear: () => {
-          wildDot.value = null
-        },
-        onEncounterTick: (tick) => {
-          // Đồng hồ đếm ngược tới lần xuất hiện tiếp theo / thời gian còn lại của Pokémon
-          encounterTick.value = tick
-          // Tự đồng bộ chấm đỏ minimap: Pokémon xuất hiện → cập nhật vị trí,
-          // hết thời gian tồn tại → xoá (đảm bảo minimap luôn khớp dù lỡ onWildSpawn)
-          if (tick.active && tick.x != null) {
-            wildDot.value = { x: tick.x, y: tick.y, mapId: tick.mapId }
-          } else if (!tick.active) {
-            wildDot.value = null
-          }
-        },
-        onWildEncounter: (pokemon) => {
-          // Mở BattleArena với mode wild + dữ liệu wild Pokémon
-          emit('open', 'wild', pokemon)
-        },
+    callbacks: {
+      onOpen,
+      onShowPopover: (loc) => { selectedLocation.value = loc },
+      onPlayerPos: (x, y) => {
+        playerX.value = x
+        playerY.value = y
+        store.worldPos.x = Math.round(x)
+        store.worldPos.y = Math.round(y)
+        cameraX.value = x - viewportW.value / 2
+        cameraY.value = y - viewportH.value / 2
+        const scene = getScene()
+        sendArenaMove({
+          x,
+          y,
+          facing: scene?.lastFacing || 'down',
+          moving: !!scene?.currentAnim,
+        })
       },
+      onInRange: (id) => {
+        inRangeLocId.value = id
+        if (selectedLocation.value && id !== selectedLocation.value.id) {
+          selectedLocation.value = null
+        }
+      },
+      onMapInfo: (mapId) => {
+        currentMapId.value = mapId
+        // Tự mở hội thoại theo stage cốt truyện: nhà (stage 0) → lab (stage 0)
+        if (onboardingStage.value === STORY_STAGES.HOME && mapId === 'house' && !homeTalkShown.value) {
+          openHomeTalk()
+        } else if (onboardingStage.value === STORY_STAGES.HOME && mapId === 'lab' && !oakDialogueOpen.value) {
+          openOakDialogue()
+        } else {
+          syncSceneLock()
+        }
+        if (mapId === 'arena') {
+          void ensureArenaPresence(true)
+        } else {
+          leaveArenaPresence()
+        }
+        // Scene đã dựng xong (create() hoàn tất) → ẩn màn hình chuyển cảnh
+        setScreenProgress(100)
+        endScreenTransition()
+      },
+      onLoadProgress: (v) => setScreenProgress(v * 100),
+      onMapChange,
+      onTileInteract,
+      onWildSpawn: (data) => {
+        // Cập nhật chấm đỏ minimap tại vị trí Pokémon hoang dã xuất hiện
+        wildDot.value = data
+      },
+      onWildClear: () => {
+        wildDot.value = null
+      },
+      onEncounterTick: (tick) => {
+        // Đồng hồ đếm ngược tới lần xuất hiện tiếp theo / thời gian còn lại của Pokémon
+        encounterTick.value = tick
+        // Tự đồng bộ chấm đỏ minimap: Pokémon xuất hiện → cập nhật vị trí,
+        // hết thời gian tồn tại → xoá (đảm bảo minimap luôn khớp dù lỡ onWildSpawn)
+        if (tick.active && tick.x != null) {
+          wildDot.value = { x: tick.x, y: tick.y, mapId: tick.mapId }
+        } else if (!tick.active) {
+          wildDot.value = null
+        }
+      },
+      onWildEncounter: (pokemon) => {
+        // Mở BattleArena với mode wild + dữ liệu wild Pokémon
+        emit('open', 'wild', pokemon)
+      },
+    },
     startPos: { x: playerX.value, y: playerY.value },
     onboardingTarget: onboardingTarget.value,
     encounters: map.encounters || { enabled: false },
@@ -627,11 +751,14 @@ function closeInfoPanel() {
 onMounted(() => {
   window.addEventListener('keydown', onGlobalKeydownCapture, true)
   window.addEventListener('keydown', onTabKeydown)
+  registerWorldCallbacks()
   startGame()
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', onGlobalKeydownCapture, true)
   window.removeEventListener('keydown', onTabKeydown)
+  leaveArenaPresence()
+  unregisterWorldCallbacks()
   destroyGame()
 })
 
@@ -650,6 +777,11 @@ watch(
     inRangeLocId.value = null
     wildDot.value = null
     encounterTick.value = null
+    if (newMapId === 'arena') {
+      await ensureArenaPresence(true)
+    } else {
+      leaveArenaPresence()
+    }
     setWorldRuntime({
       onboardingTarget: getOnboardingTarget(newMapId),
       encounters: map.encounters || { enabled: false },
@@ -680,12 +812,32 @@ watch(onboardingStage, () => {
   setWorldRuntime({ onboardingTarget: getOnboardingTarget(currentMapId.value) })
   game?.scene.getScene('WorldScene')?.refreshOnboardingMarker?.()
 })
+
+watch(isArenaMap, (active) => {
+  if (active) {
+    void ensureArenaPresence(true)
+  } else {
+    leaveArenaPresence()
+  }
+})
 </script>
 
 <template>
   <div class="relative h-full w-full overflow-hidden bg-black">
     <!-- PHASER CANVAS -->
     <div ref="containerRef" class="absolute inset-0" />
+
+    <div
+      v-if="isArenaMap"
+      class="pointer-events-none absolute left-3 top-3 z-20 rounded-xl border border-cyan-200 bg-slate-950/75 px-3 py-2 text-xs font-semibold text-cyan-100 shadow-lg backdrop-blur"
+    >
+      <div class="flex items-center gap-2">
+        <span :class="arenaOnline ? 'animate-pulse text-emerald-300' : 'text-rose-300'">🌐</span>
+        <span>{{ arenaOnline ? 'Arena online' : 'Arena offline' }}</span>
+      </div>
+      <div class="mt-1 text-[11px] text-slate-300">👥 {{ arenaPlayers }} người đang ở đấu trường</div>
+      <div v-if="arenaConnectionHint" class="mt-1 text-[11px] text-cyan-200">{{ arenaConnectionHint }}</div>
+    </div>
 
     <!-- BẢNG THÔNG TIN TRƯỢT TRÁI (bấm Tab để mở/đóng) -->
     <Teleport to="body">
