@@ -53,6 +53,7 @@ function publicWorldPlayer(client) {
     id: client.playerId || client.id,
     name: client.playerName || client.playerId || 'Guest',
     level: client.level || 1,
+    elo: client.elo,
     x: client.world?.x ?? 0,
     y: client.world?.y ?? 0,
     facing: client.world?.facing || 'down',
