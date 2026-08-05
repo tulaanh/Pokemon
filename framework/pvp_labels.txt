@@ -1,0 +1,5 @@
+src\components\pvp\PvpPlayerIdentity.vue:12: const level = computed(() => props.mine ? store.gameState.player.level : props.player?.level)
+src\components\pvp\PvpPlayerIdentity.vue:13: const name = computed(() => props.mine ? (store.gameState.player.playerName || 'Bạn') : (props.player?.name || 'Đối thủ'))
+src\components\pvp\PvpPlayerIdentity.vue:24:       <div class="absolute -bottom-1 -right-1 flex h-6 min-w-[22px] items-center justify-center rounded-full border-2 border-white bg-slate-900 px-1 text-[9px] font-black text-white shadow-md">{{ level ?? '–' }}</div>
+src\components\pvp\PvpPlayerIdentity.vue:28:       <div class="text-[10px] font-bold text-slate-400">Lv.{{ level ?? '–' }} · {{ rank.shortName }}</div>
+---

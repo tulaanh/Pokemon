@@ -253,7 +253,14 @@ function executeBannerRoll(bannerId) {
     (rarityName === 'Common' && store.settings.autoDiscardCommon) ||
     (rarityName === 'Rare' && store.settings.autoDiscardRare)
 
-  if (!autoDiscard) addPokemonToInventory(newPoke)
+  if (!autoDiscard) {
+    // Kho đầy → không mất con: đưa vào hàng chờ, sẽ tự nhập kho khi có chỗ trống
+    const added = addPokemonToInventory(newPoke)
+    if (!added) {
+      newPoke.pending = true
+      store.pendingInventory.push(newPoke)
+    }
+  }
 
   return { ...newPoke, autoDiscarded: autoDiscard }
 }

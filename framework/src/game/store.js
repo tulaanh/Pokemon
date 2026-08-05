@@ -3,11 +3,12 @@
 // Tương thích save cũ với key 'pokemonGameState'
 // ==========================================
 
-import { reactive } from 'vue'
+import { reactive, watch } from 'vue'
 import { getPlayerNextLevelExp } from './stats.js'
 import { ensureSkillsByLevelMigration } from './gacha.js'
 import { applyEvolutions } from './evolution.js'
 import { getMap } from './maps.js'
+import { INVENTORY_LIMIT } from './data.js'
 
 const SAVE_KEY = 'pokemonGameState'
 
@@ -29,6 +30,7 @@ function defaultState() {
       master_ball: 0,
     },
     team: [],
+    pendingInventory: [],
     gameState: {
       player: {
         level: 1,
@@ -104,6 +106,23 @@ export function addPokemonToInventory(pokemon) {
   return true
 }
 
+/**
+ * Đưa Pokémon đang chờ (hàng chờ khi kho đầy lúc quay gacha) vào kho khi còn chỗ.
+ * @returns {number} Số Pokémon đã nhập kho
+ */
+export function flushPendingInventory() {
+  let flushed = 0
+  while (store.pendingInventory.length > 0 && store.team.length < INVENTORY_LIMIT) {
+    let pok = store.pendingInventory.shift()
+    if (!pok) continue
+    if (!pok.id) pok.id = 'poke-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10)
+    pok.pending = false
+    store.team.push(pok)
+    flushed++
+  }
+  return flushed
+}
+
 export function saveGameState() {
   try {
     const player = store.gameState.player
@@ -112,6 +131,7 @@ export function saveGameState() {
       gold: store.gold,
       inventory: store.inventory,
       team: store.team,
+      pendingInventory: store.pendingInventory,
       gymBuffs: store.gymBuffs,
       gymProgress: store.gymProgress,
       campaignCleared: store.campaignCleared,
@@ -183,6 +203,9 @@ export function loadGameState() {
       if (!Number.isFinite(store.inventory[ballId])) store.inventory[ballId] = 0
     }
     if (data.team) store.team = data.team
+    // Migration: hàng chờ nhập kho (kho đầy khi quay gacha) — giữ nguyên, chờ có chỗ sẽ tự nhập
+    store.pendingInventory = Array.isArray(data.pendingInventory) ? data.pendingInventory : []
+    store.pendingInventory.forEach((pok) => { if (pok) pok.pending = false })
     if (data.gymBuffs) store.gymBuffs = data.gymBuffs
     if (data.gymProgress) store.gymProgress = { ...store.gymProgress, ...data.gymProgress }
     store.campaignCleared = Array.isArray(data.campaignCleared) ? data.campaignCleared : []
@@ -275,6 +298,13 @@ export function healAllPokemon() {
 
 export function initStore() {
   loadGameState()
+  // Tự nhập Pokémon đang chờ khi kho có chỗ trống (sau bán / hợp nhất / dùng kẹo…)
+  watch(
+    () => store.team.length,
+    () => {
+      if (flushPendingInventory() > 0) saveGameState()
+    }
+  )
   setInterval(saveGameState, 5000)
   window.addEventListener('beforeunload', saveGameState)
 }

@@ -16,6 +16,7 @@ const lastResult = ref(null)
 
 const activeBanner = computed(() => getBannerById(selectedBannerId.value))
 const teamCount = computed(() => store.team.length)
+const pendingCount = computed(() => store.pendingInventory.length)
 
 function selectBanner(id) {
   selectedBannerId.value = id
@@ -49,6 +50,14 @@ function handleRoll(times) {
     return
   }
   lastResult.value = result
+  const pendingResults = result.results.filter((p) => p.pending)
+  if (pendingResults.length > 0) {
+    showToast(
+      `Kho đã đầy! ${pendingResults.length} Pokémon hiếm đang chờ nhập kho. Hãy bán/hợp nhất để giải phóng chỗ trống — chúng sẽ tự vào kho.`,
+      'warning',
+      6000
+    )
+  }
   const best = result.results.reduce((a, b) => (b.rarity.statMult > a.rarity.statMult ? b : a), result.results[0])
   if (best.rarity.name === 'Legendary' || best.rarity.name === 'Mythic' || best.rarity.name === 'Secret') {
     showToast(`🎉 CHÚC MỪNG! Bạn nhận được ${best.rarity.name}: ${best.name}!`, 'success', 5000)
@@ -63,6 +72,9 @@ function handleRoll(times) {
       <p class="mb-5 mt-1 text-sm text-slate-500">
         Dùng PokePoint để chiêu mộ Pokémon mới về đội và nhận PokeGacha tích lũy đổi Pokémon bảo hiểm!
         <span class="text-slate-400">(Kho: {{ teamCount }}/150)</span>
+        <span v-if="pendingCount > 0" class="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+          ⏳ Đang chờ nhập kho: {{ pendingCount }}
+        </span>
       </p>
 
       <h4 class="mb-3 text-left text-sm font-semibold text-amber-600">🌟 Chọn Banner Triệu Hoán:</h4>
@@ -128,6 +140,9 @@ function handleRoll(times) {
               🎉 Bạn nhận được: <RarityText :rarity="lastResult.results[0].rarity" :label="`[${lastResult.results[0].rarity.name}] ${lastResult.results[0].name}`" />
               <span class="text-slate-500"> (Lv.{{ lastResult.results[0].level }}) - Hệ {{ lastResult.results[0].type }}!</span>
             </div>
+            <div v-if="lastResult.results[0].pending" class="mt-2 rounded-lg bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">
+              ⏳ Kho đầy — Pokémon đang chờ nhập kho. Hãy bán/hợp nhất để giải phóng chỗ trống.
+            </div>
           </div>
         </template>
         <template v-else>
@@ -138,6 +153,7 @@ function handleRoll(times) {
               <div class="min-w-0">
                 <div class="truncate"><RarityText :rarity="p.rarity" :label="`[${p.rarity.name}] ${p.name}`" /></div>
                 <div class="text-[11px] text-slate-500">(Lv.{{ p.level }}) - Hệ {{ p.type }}</div>
+                <div v-if="p.pending" class="mt-0.5 text-[10px] font-semibold text-amber-600">⏳ Chờ nhập kho</div>
               </div>
             </div>
           </div>

@@ -131,6 +131,26 @@ export function canSellForGems(poke) {
   return !!GEM_PRICES[getRarityName(poke)]
 }
 
+// Pokémon độ hiếm từ Legendary trở lên (Legendary, Mythic, Secret)
+export function isHighRarity(poke) {
+  return (RARITY_ORDER[getRarityName(poke)] || 0) >= RARITY_ORDER.Legendary
+}
+
+// Tổng hợp thông tin bán cho danh sách uniqueId đã chọn (hiển thị + confirm)
+export function getBatchSellInfo(uniqueIds) {
+  let count = 0
+  let gold = 0
+  let highRarityCount = 0
+  uniqueIds.forEach((uid) => {
+    let poke = store.team.find((p) => getPokemonUniqueId(p) === String(uid))
+    if (!poke) return
+    count++
+    gold += getSellPrice(poke)
+    if (isHighRarity(poke)) highRarityCount++
+  })
+  return { count, gold, highRarityCount }
+}
+
 // Xóa Pokémon theo chỉ mục và sửa lại các chỉ mục trỏ vào team
 function removePokemonByIndex(removedIdx) {
   store.team.splice(removedIdx, 1)
@@ -244,6 +264,45 @@ export function sellDuplicates() {
     count: toSell.length,
     gold: totalGold,
     message: `🗑️ Đã bán ${toSell.length} Pokémon trùng lặp lấy ${totalGold.toLocaleString('en-US')} Vàng!`,
+  }
+}
+
+// Bán hàng loạt theo danh sách uniqueId đã chọn (phải giữ ít nhất 1 con), nhận Vàng
+export function sellPokemonBatch(uniqueIds) {
+  let ids = uniqueIds.map(String)
+  if (ids.length === 0) return { ok: false, message: '❌ Chưa chọn Pokémon nào!' }
+  if (store.team.length - ids.length < 1) {
+    return { ok: false, message: '❌ Không thể bán hết Pokémon trong kho (phải giữ ít nhất 1 con)!' }
+  }
+
+  let toSell = []
+  store.team.forEach((p, index) => {
+    if (ids.indexOf(getPokemonUniqueId(p)) !== -1) toSell.push(index)
+  })
+  if (toSell.length === 0) return { ok: false, message: '❌ Không tìm thấy Pokémon để bán!' }
+
+  let totalGold = 0
+  toSell.sort((a, b) => b - a)
+  toSell.forEach((idx) => {
+    let poke = store.team[idx]
+    totalGold += getSellPrice(poke)
+
+    let uid = getPokemonUniqueId(poke)
+    let pokeDexIdx = store.gameState.pokedex.indexOf(uid)
+    if (pokeDexIdx !== -1) store.gameState.pokedex.splice(pokeDexIdx, 1)
+
+    removePokemonByIndex(idx)
+  })
+
+  store.gold += totalGold
+  addQuestProgress('sells', toSell.length)
+  saveGameState()
+
+  return {
+    ok: true,
+    count: toSell.length,
+    gold: totalGold,
+    message: `🗑️ Đã bán ${toSell.length} Pokémon lấy ${totalGold.toLocaleString('en-US')} Vàng!`,
   }
 }
 
