@@ -11,8 +11,9 @@ const lineIdx = ref(0)
 const showGuidance = ref(false)
 
 const LINES = [
-  'Cuối cùng mình cũng đủ tuổi để trở thành Huấn luyện viên Pokémon rồi!',
-  'Đã đến lúc đến Phòng Lab của Giáo sư Oak nhận Pokémon khởi đầu thôi!',
+  'Cái gì... đây là đâu? Mình vừa tỉnh dậy trên một chiếc giường lạ hoắc trong một căn nhà lạ hoắc...!',
+  'Chẳng lẽ... mình thật sự xuyên vào thế giới Pokémon trong cuốn truyện rồi?',
+  'Trên bàn có lá thư để lại: "Hãy đến nhà Giáo sư Oak nhận Pokémon khởi đầu."',
 ]
 
 const currentLine = computed(() => LINES[lineIdx.value])
@@ -40,8 +41,8 @@ function close() {
       <div class="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-slide-up">
         <!-- Header -->
         <div class="border-b border-slate-200 bg-gradient-to-r from-sky-500 to-indigo-500 p-6 text-center">
-          <h2 class="text-3xl font-bold text-white">🏠 Nhà của bạn</h2>
-          <p class="mt-1 text-sky-50">Buổi sáng đầu tiên của hành trình</p>
+          <h2 class="text-3xl font-bold text-white">🏠 Căn nhà xa lạ</h2>
+          <p class="mt-1 text-sky-50">Tỉnh dậy ở một thế giới mới</p>
         </div>
 
         <!-- Body -->
@@ -69,7 +70,7 @@ function close() {
               <div class="mb-2 text-center text-sm font-bold text-amber-700">🧭 Việc cần làm</div>
               <ol class="space-y-1.5 text-sm text-slate-700">
                 <li>1. Ra khỏi nhà (bước đến cửa phía trên).</li>
-                <li>2. Đi sang <b>tòa nhà bên phải</b> ở thị trấn — Phòng Lab của Giáo sư Oak.</li>
+                <li>2. Đi sang <b>tòa nhà bên phải</b> ở thị trấn — nhà của Giáo sư Oak.</li>
                 <li>3. Nói chuyện với Oak để nhập tên và nhận Pokémon khởi đầu!</li>
               </ol>
             </div>

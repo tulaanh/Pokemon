@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { playMusic } from './game/audio.js'
+import TitleScreen from './components/TitleScreen.vue'
 import GameHeader from './components/GameHeader.vue'
 import CheatConsole from './components/CheatConsole.vue'
 import WorldMap from './components/map/WorldMap.vue'
@@ -21,67 +22,12 @@ import PvpRankingView from './views/PvpRankingView.vue'
 import PvpHistoryView from './views/PvpHistoryView.vue'
 import PvpBattleView from './views/PvpBattleView.vue'
 import { getOnboardingStage, STORY_STAGES } from './game/story.js'
+import { categories } from './game/modes.js'
 import Toast from './components/ui/Toast.vue'
 import ConfirmModal from './components/ui/ConfirmModal.vue'
 import SettingsModal from './components/ui/SettingsModal.vue'
 import ScreenTransition from './components/ui/ScreenTransition.vue'
 import { withScreenTransition } from './game/screenTransition.js'
-
-const categories = [
-  {
-    id: 'collection',
-    icon: '🎮',
-    label: 'Thu Thập & Đội Hình',
-    desc: 'Quay Gacha, quản lý đội hình và hợp nhất',
-    modes: [
-      { id: 'gacha', icon: '🎁', label: 'Gacha' },
-      { id: 'roster', icon: '🎒', label: 'Đội Hình' },
-      { id: 'merge', icon: '🧬', label: 'Hợp Nhất' },
-    ],
-  },
-  {
-    id: 'battle',
-    icon: '⚔️',
-    label: 'Chiến Đấu',
-    desc: 'Chiến dịch, Story, Gym và leo tháp',
-    modes: [
-      { id: 'campaign', icon: '⚔️', label: 'Chiến Dịch' },
-      { id: 'story', icon: '📖', label: 'Story' },
-      { id: 'gym', icon: '🏟️', label: 'Phòng Gym' },
-      { id: 'tower', icon: '🗼', label: 'Leo Tháp' },
-    ],
-  },
-  {
-    id: 'pvp',
-    icon: '🌐',
-    label: 'Đấu Trường Trực Tuyến',
-    desc: 'PvP Multiplayer, xếp hạng và lịch sử',
-    modes: [
-      { id: 'pvp_lobby', icon: '⚔️', label: 'Tìm Trận' },
-      { id: 'pvp_ranking', icon: '🏆', label: 'Bảng Xếp Hạng' },
-      { id: 'pvp_history', icon: '📜', label: 'Lịch Sử Đấu' },
-    ],
-  },
-  {
-    id: 'items',
-    icon: '🛒',
-    label: 'Vật Phẩm',
-    desc: 'Mua sắm và quản lý vật phẩm',
-    modes: [
-      { id: 'shop', icon: '🛒', label: 'Cửa Hàng' },
-      { id: 'inventory', icon: '📦', label: 'Kho Đồ' },
-    ],
-  },
-  {
-    id: 'events',
-    icon: '📅',
-    label: 'Sự Kiện',
-    desc: 'Điểm danh và nhiệm vụ hằng ngày',
-    modes: [
-      { id: 'daily', icon: '📅', label: 'Hằng Ngày' },
-    ],
-  },
-]
 
 const MODE_VIEWS = {
   gacha: GachaView,
@@ -104,6 +50,7 @@ const MODE_VIEWS = {
 
 const activeMode = ref(null)
 const activePayload = ref(null)
+const showTitle = ref(true)
 
 const activeModeInfo = computed(() => {
   for (const cat of categories) {
@@ -189,6 +136,9 @@ function kickStart() {
     <div class="pointer-events-none fixed inset-0 bg-gradient-to-br from-sky-100/70 via-slate-50/60 to-fuchsia-100/70"></div>
 
     <div class="relative">
+      <!-- MÀN HÌNH MỞ ĐẦU (title screen) -->
+      <TitleScreen v-if="showTitle" @start="showTitle = false" />
+
       <!-- BẢN ĐỒ THẾ GIỚI (fullscreen, ẩn header để map chiếm toàn bộ màn hình) -->
         <template v-if="activeMode === null">
           <div class="fixed inset-0 z-10">
@@ -199,7 +149,7 @@ function kickStart() {
           class="fixed left-1/2 top-3 z-20 -translate-x-1/2 rounded-xl border border-amber-300 bg-amber-50/95 px-4 py-3 text-center text-sm font-semibold text-amber-700 shadow-lg backdrop-blur-sm"
         >
           <template v-if="onboardingStage === STORY_STAGES.HOME">
-            🧭 Nhiệm vụ: Đi đến <span class="font-black">Phòng Lab của Giáo sư Oak</span> (tòa nhà bên phải thị trấn) để nhập tên và nhận Pokémon khởi đầu!
+            🧭 Nhiệm vụ: Đi đến <span class="font-black">nhà Giáo sư Oak</span> (tòa nhà bên phải thị trấn) để nhập tên và nhận Pokémon khởi đầu!
           </template>
           <template v-else-if="onboardingStage === STORY_STAGES.GO_CAMPAIGN">
             🧭 Nhiệm vụ: Đi đến <span class="font-black">Cửa Chiến dịch ⚔️</span> ở thị trấn để bắt đầu hành trình!

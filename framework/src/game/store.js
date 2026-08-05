@@ -14,8 +14,8 @@ const SAVE_KEY = 'pokemonGameState'
 function defaultState() {
   const houseSpawn = getMap('house').spawn
   return {
-    gems: 1000,
-    gold: 100,
+    gems: 0,
+    gold: 0,
     inventory: {
       candy: 0,
       fire_stone: 0,
@@ -34,10 +34,12 @@ function defaultState() {
         level: 1,
         playerExp: 0,
         playerExpToNext: 100,
-        pokePoint: 1500,
+        pokePoint: 0,
         pokeGacha: 0,
         playerName: '',
+        character: 'red',
         hasCompletedFirstLogin: false,
+        hasSeenIntro: false,
         onboardingStage: 0,
       },
       pokedex: [],
@@ -69,6 +71,8 @@ function defaultState() {
     },
     searchQuery: '',
     sortBy: 'default',
+    // Cờ tạm (không lưu save): đánh dấu vừa hoàn thành nhiệm vụ khởi đầu → mở modal chúc mừng
+    startMissionCongrats: false,
     activePokeIdx: 0,
     mergeSlotMain: null,
     mergeSlotSub: null,
@@ -127,7 +131,9 @@ export function saveGameState() {
         pokePoint: player.pokePoint,
         pokeGacha: player.pokeGacha,
         playerName: player.playerName,
+        character: player.character || 'red',
         hasCompletedFirstLogin: player.hasCompletedFirstLogin,
+        hasSeenIntro: player.hasSeenIntro,
         onboardingStage: player.onboardingStage,
       },
     }
@@ -198,7 +204,10 @@ export function loadGameState() {
       p.pokePoint = data.playerState.pokePoint !== undefined ? data.playerState.pokePoint : 1000
       p.pokeGacha = data.playerState.pokeGacha !== undefined ? data.playerState.pokeGacha : 0
       p.playerName = data.playerState.playerName !== undefined ? data.playerState.playerName : ''
+      p.character = data.playerState.character || 'red'
       p.hasCompletedFirstLogin = data.playerState.hasCompletedFirstLogin !== undefined ? data.playerState.hasCompletedFirstLogin : false
+      // Migration save cũ: chưa từng xem intro → người chơi cũ bỏ qua, save mới sẽ xem
+      p.hasSeenIntro = data.playerState.hasSeenIntro !== undefined ? data.playerState.hasSeenIntro : !!p.hasCompletedFirstLogin
       if (data.playerState.onboardingStage !== undefined) {
         p.onboardingStage = data.playerState.onboardingStage
       } else {

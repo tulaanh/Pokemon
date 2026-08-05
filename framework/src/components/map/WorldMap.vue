@@ -9,6 +9,7 @@ import { WorldScene, setWorldRuntime } from './worldScene.js'
 import { LOCATIONS } from '../../game/world.js'
 import { getMap, TOWN_ID, getMapTilesets, getMapSpawn, getMapTransitions } from '../../game/maps.js'
 import { NPCS, QUESTS } from '../../game/quests.js'
+import { getCharacter } from '../../game/characters.js'
 import { showToast } from '../ui/toast.js'
 import { openSettings } from '../ui/settingsModal.js'
 import { beginScreenTransition, endScreenTransition, setScreenProgress } from '../../game/screenTransition.js'
@@ -249,7 +250,7 @@ const getModeLabel = (mode) => {
 // Trong giai đoạn 0 (chưa nhận starter từ Oak), khoá mọi thứ ngoài lab
 function gateOnboarding() {
   if (onboardingStage.value === STORY_STAGES.HOME) {
-    showToast('🧑‍🔬 Hãy nói chuyện với Giáo sư Oak ở phòng lab trước đã nhé!', 'warning')
+    showToast('🧑‍🔬 Hãy nói chuyện với Giáo sư Oak ở nhà ông ấy trước đã nhé!', 'warning')
     return true
   }
   return false
@@ -375,7 +376,7 @@ function onHomeTalkComplete() {
   homeTalkOpen.value = false
   homeTalkShown.value = true
   syncSceneLock()
-  showToast('🧭 Ra khỏi nhà → đến Phòng Lab của Giáo sư Oak (tòa nhà bên phải thị trấn) để nhận Pokémon khởi đầu!', 'info')
+  showToast('🧭 Ra khỏi nhà → đến nhà Giáo sư Oak (tòa nhà bên phải thị trấn) để nhận Pokémon khởi đầu!', 'info')
 }
 
 function onOpen(mode) {
@@ -455,10 +456,6 @@ function onMapChange(mapId, spawn, transitionData) {
   }
   // Cửa Chiến Dịch (⚔️) — mở tab Chiến Dịch thay vì chuyển map
   if (mapId === 'campaign') {
-    // Giai đoạn 3 (đã xong hướng dẫn): mở chiến dịch = hoàn tất onboarding
-    if (onboardingStage.value === STORY_STAGES.GO_CAMPAIGN) {
-      setOnboardingStage(STORY_STAGES.DONE)
-    }
     emit('open', 'campaign')
     return
   }
@@ -922,6 +919,25 @@ watch(isArenaMap, (active) => {
     leaveArenaPresence()
   }
 })
+
+// Đổi nhân vật (nam/nữ) từ Cài Đặt → restart scene để nạp sprite + anim mới
+watch(
+  () => store.gameState.player.character,
+  (newChar, oldChar) => {
+    if (!newChar || newChar === oldChar) return
+    beginScreenTransition({ label: 'Đang đổi nhân vật...', minDuration: 300 })
+    const map = getMap(currentMapId.value)
+    setWorldRuntime({
+      onboardingTarget: getOnboardingTarget(currentMapId.value),
+      encounters: map.encounters || { enabled: false },
+    })
+    game?.scene.getScene('WorldScene')?.scene.restart({
+      mapId: currentMapId.value,
+      startPos: { x: playerX.value, y: playerY.value },
+    })
+    showToast(`👤 Đã đổi sang nhân vật ${getCharacter(newChar).label} (${getCharacter(newChar).name})!`, 'success')
+  },
+)
 </script>
 
 <template>

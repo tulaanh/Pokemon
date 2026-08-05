@@ -6,6 +6,7 @@ import { POKEMON_SPECIES, RARITIES } from './data.js'
 import { store, saveGameState, addPlayerExp } from './store.js'
 import { generateSkillInstance } from './gacha.js'
 import { addQuestProgress } from './daily.js'
+import { getOnboardingStage, setOnboardingStage, STORY_STAGES } from './story.js'
 import {
   battle,
   battleLog,
@@ -874,6 +875,15 @@ export function showCampaignResult(win) {
   if (win && battle.mode !== 'training') {
     markCampaignCleared(battle.campaignId)
     addQuestProgress('wins', 1)
+    // Nhiệm vụ khởi đầu: thắng trận chiến dịch đầu tiên (Cửa 1) khi đang ở giai đoạn GO_CAMPAIGN
+    if (getOnboardingStage() === STORY_STAGES.GO_CAMPAIGN) {
+      store.gold += 1000
+      store.gems += 1000
+      store.gameState.player.pokeGacha += 1500
+      setOnboardingStage(STORY_STAGES.DONE)
+      store.startMissionCongrats = true
+      battleLog('🎉 Hoàn thành nhiệm vụ khởi đầu! Nhận +1000 🪙, +1000 💎, +1500 🎟️ Vé Quay!')
+    }
   }
   battle.resultOpen = true
   battle.resultWin = win

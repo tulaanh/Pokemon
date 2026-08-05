@@ -2,14 +2,23 @@
 import { computed } from 'vue'
 import { settingsModalState, closeSettings } from './settingsModal.js'
 import { musicEnabled, setMusicEnabled, setMusicVolume } from '../../game/audio.js'
-import { store, resetProgress } from '../../game/store.js'
+import { store, saveGameState, resetProgress } from '../../game/store.js'
+import { CHARACTERS, getCharacter } from '../../game/characters.js'
 import { showToast, confirmModal } from './toast.js'
 
 const musicOn = computed(() => musicEnabled())
 const volume = computed(() => Math.round((store.settings.musicVolume ?? 0.5) * 100))
+const currentCharacter = computed(() => store.gameState.player.character || 'red')
 
 function onVolume(e) {
   setMusicVolume(Number(e.target.value) / 100)
+}
+
+function selectCharacter(id) {
+  if (!CHARACTERS[id] || currentCharacter.value === id) return
+  store.gameState.player.character = id
+  saveGameState()
+  showToast(`👤 Đã chọn nhân vật ${getCharacter(id).label} (${getCharacter(id).name})!`, 'success')
 }
 
 async function onResetProgress() {
@@ -80,6 +89,35 @@ async function onResetProgress() {
             @input="onVolume"
             class="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
           />
+        </div>
+
+        <!-- CHỌN NHÂN VẬT (NAM / NỮ) -->
+        <div class="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <div class="mb-2 flex items-center justify-between">
+            <span class="text-sm font-bold text-slate-700">👤 Nhân Vật</span>
+            <span class="text-xs font-semibold text-slate-400">{{ getCharacter(currentCharacter).label }}</span>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <button
+              v-for="char in CHARACTERS"
+              :key="char.id"
+              @click="selectCharacter(char.id)"
+              class="flex flex-col items-center gap-1.5 rounded-xl border-2 bg-white px-3 py-3 transition"
+              :class="currentCharacter === char.id
+                ? 'border-amber-400 bg-amber-50 shadow-md'
+                : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'"
+            >
+              <span
+                class="block h-16 w-8"
+                style="background-repeat: no-repeat; image-rendering: pixelated"
+                :style="{ backgroundImage: `url('${char.sprite}')`, backgroundSize: '288px 64px', backgroundPosition: '0 0' }"
+              ></span>
+              <span class="text-xs font-bold" :class="currentCharacter === char.id ? 'text-amber-700' : 'text-slate-600'">
+                {{ char.emoji }} {{ char.label }}
+              </span>
+            </button>
+          </div>
+          <p class="mt-2 text-[11px] text-slate-400">Nhân vật sẽ được đổi ngay trên bản đồ sau khi chọn.</p>
         </div>
 
         <button

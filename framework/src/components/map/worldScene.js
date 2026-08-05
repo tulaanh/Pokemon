@@ -16,6 +16,7 @@ import { TOWN_ID, getMap, getMapTransitions } from '../../game/maps.js'
 import { getPvpRank } from '../../game/pvp/rank.js'
 import { store } from '../../game/store.js'
 import { rollWildEncounter } from '../../game/capture.js'
+import { getCharacter, getCharacterTextureKey } from '../../game/characters.js'
 
 // Runtime truyền từ Vue (gọi setWorldRuntime TRƯỚC khi khởi tạo Phaser.Game)
 // để chắc chắn có giá trị khi scene create() chạy (bất kể timing boot của Phaser).
@@ -60,6 +61,9 @@ export class WorldScene extends Phaser.Scene {
     this.mapId = data?.mapId || store.worldPos?.mapId || TOWN_ID
     this.mapInfo = getMap(this.mapId)
     this.callbacks = data?.callbacks || runtime.callbacks || {}
+    // Nhân vật người chơi (nam/nữ) — texture + anim key riêng theo từng nhân vật
+    this.charId = store.gameState?.player?.character || 'red'
+    this.charTexKey = getCharacterTextureKey(this.charId)
     // Default spawn của map (spawns.start từ JSON) chỉ dùng khi không có vị trí rõ ràng
     // (đi qua cửa luôn truyền startPos đã resolve → không bị ghi đè).
     this.startPos = { ...(data?.startPos || runtime.startPos || this.mapInfo.spawns?.start || this.mapInfo.spawn) }
@@ -106,10 +110,12 @@ export class WorldScene extends Phaser.Scene {
     // Báo tiến trình tải asset (map JSON + tileset PNG + sprite player) cho màn hình chuyển cảnh
     this.load.off('progress')
     this.load.on('progress', (v) => runtime.callbacks.onLoadProgress?.(v))
-    this.load.spritesheet('player', '/images/map/player_red.png', {
-      frameWidth: 16,
-      frameHeight: 32,
-    })
+    if (!this.textures.exists(this.charTexKey)) {
+      this.load.spritesheet(this.charTexKey, getCharacter(this.charId).sprite, {
+        frameWidth: 16,
+        frameHeight: 32,
+      })
+    }
     if (this.mapInfo.kind === 'legacy') {
       this.load.image('terrain', '/images/map/terrain.png')
     } else {
@@ -564,22 +570,23 @@ export class WorldScene extends Phaser.Scene {
   // NGƯỜI CHƠI
   // ======================================================================
   buildPlayer() {
-    if (!this.anims.exists('walk-down')) {
-      const frame = (n) => ({ key: 'player', frame: n })
+    const animSuffix = `-${this.charId}`
+    if (!this.anims.exists(`walk-down${animSuffix}`)) {
+      const frame = (n) => ({ key: this.charTexKey, frame: n })
       this.anims.create({
-        key: 'walk-down',
+        key: `walk-down${animSuffix}`,
         frames: [frame(0), frame(3), frame(0), frame(4)],
         frameRate: 8,
         repeat: -1,
       })
       this.anims.create({
-        key: 'walk-up',
+        key: `walk-up${animSuffix}`,
         frames: [frame(1), frame(5), frame(1), frame(6)],
         frameRate: 8,
         repeat: -1,
       })
       this.anims.create({
-        key: 'walk-left',
+        key: `walk-left${animSuffix}`,
         frames: [frame(2), frame(7), frame(2), frame(8)],
         frameRate: 8,
         repeat: -1,
@@ -588,7 +595,7 @@ export class WorldScene extends Phaser.Scene {
 
     this.physics.world.setBounds(0, 0, this.actualMapW || this.mapInfo.width, this.actualMapH || this.mapInfo.height)
 
-    this.player = this.physics.add.sprite(this.startPos.x, this.startPos.y, 'player', 0)
+    this.player = this.physics.add.sprite(this.startPos.x, this.startPos.y, this.charTexKey, 0)
     const s = this.mapInfo.playerScale
     this.player.setScale(s)
     this.player.setDepth(1000000)
@@ -640,7 +647,7 @@ export class WorldScene extends Phaser.Scene {
         this.player.flipX = dx > 0 // right = mirror of left
       }
 
-      const animKey = this.lastFacing === 'left' ? 'walk-left' : `walk-${this.lastFacing}`
+      const animKey = this.lastFacing === 'left' ? `walk-left-${this.charId}` : `walk-${this.lastFacing}-${this.charId}`
       if (animKey !== this.currentAnim) {
         this.player.play(animKey)
         this.currentAnim = animKey
@@ -684,7 +691,7 @@ export class WorldScene extends Phaser.Scene {
 
     const displayName = this.getPlayerDisplayName(player)
     const labelText = this.getPlayerLabelText(player)
-    const sprite = this.physics.add.sprite(player.x || 0, player.y || 0, 'player', 0)
+    const sprite = this.physics.add.sprite(player.x || 0, player.y || 0, this.charTexKey, 0)
     const s = this.mapInfo.playerScale || 1
     sprite.setScale(s)
     sprite.setDepth(900000)
