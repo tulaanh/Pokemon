@@ -163,7 +163,11 @@ export function connectPvP() {
       connectedOnce = true
       store.pvp.connected = true
       // Gửi authenticate (playerId từ store)
-      send('auth', { playerId: store.gameState.player.playerName || 'guest' })
+       send('auth', {
+         playerId: store.gameState.player.playerName || 'guest',
+         playerName: store.gameState.player.playerName || 'Bạn',
+         level: store.gameState.player.level || 1,
+       })
       startHeartbeat()
       callbacks.onOpen?.()
       settled = true

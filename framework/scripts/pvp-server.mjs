@@ -42,7 +42,8 @@ function shortId(prefix) {
 function publicPlayer(client) {
   return {
     id: client.playerId || client.id,
-    name: client.playerId || 'Guest',
+    name: client.playerName || client.playerId || 'Guest',
+    level: client.level || 1,
     elo: client.elo,
   }
 }
@@ -50,7 +51,8 @@ function publicPlayer(client) {
 function publicWorldPlayer(client) {
   return {
     id: client.playerId || client.id,
-    name: client.playerId || 'Guest',
+    name: client.playerName || client.playerId || 'Guest',
+    level: client.level || 1,
     x: client.world?.x ?? 0,
     y: client.world?.y ?? 0,
     facing: client.world?.facing || 'down',
@@ -493,6 +495,8 @@ wss.on('connection', (ws, req) => {
     id: shortId('client'),
     ws,
     playerId: 'guest',
+    playerName: 'Guest',
+    level: 1,
     elo: 1000,
     team: [],
     format: 'standard',
@@ -511,6 +515,8 @@ wss.on('connection', (ws, req) => {
     switch (type) {
       case 'auth':
         client.playerId = payload.playerId || 'guest'
+        client.playerName = String(payload.playerName || payload.playerId || 'Guest').slice(0, 24)
+        client.level = Math.max(1, Number(payload.level) || 1)
         send(ws, 'queue_update', { position: 0, estimatedWaitMs: 0 })
         console.log(`[PvP] Auth: ${client.playerId}`)
         break

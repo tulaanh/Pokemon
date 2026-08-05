@@ -5,6 +5,7 @@ import { connectPvP, disconnectPvP, findMatch, cancelMatch, setPvPCallbacks, cle
 import { showToast } from '../components/ui/toast.js'
 import PokeSprite from '../components/PokeSprite.vue'
 import RarityText from '../components/RarityText.vue'
+import PvpPlayerIdentity from '../components/pvp/PvpPlayerIdentity.vue'
 
 const emit = defineEmits(['open', 'close'])
 
@@ -363,16 +364,14 @@ watch(() => inQueue.value, (val) => {
             <div class="text-5xl animate-pulse">⚔️</div>
             <h3 class="text-xl font-bold text-slate-800">Đã tìm thấy đối thủ!</h3>
             <div class="flex items-center justify-center gap-6 mt-4">
-              <div class="text-center">
-                <div class="text-sm text-slate-500">Bạn</div>
-                <div class="font-bold text-indigo-600">{{ store.gameState.player.playerName || 'Player' }}</div>
-                <div class="text-xs text-slate-500">ELO: {{ myElo }}</div>
+                <div class="min-w-0 max-w-[180px] text-center">
+                <div class="mb-1 text-sm text-slate-500">Bạn</div>
+                <PvpPlayerIdentity mine />
               </div>
               <span class="text-2xl">VS</span>
-              <div class="text-center">
+                <div class="min-w-0 max-w-[180px] text-center">
                 <div class="text-sm text-slate-500">Đối thủ</div>
-                <div class="font-bold text-rose-600">{{ matchData.opponent?.name }}</div>
-                <div class="text-xs text-slate-500">ELO: {{ matchData.opponent?.elo }}</div>
+                <PvpPlayerIdentity :player="matchData.opponent" />
               </div>
             </div>
             <div class="mt-4 text-sm text-amber-700">Trận đấu sẽ bắt đầu trong giây lát...</div>

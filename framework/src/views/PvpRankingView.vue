@@ -1,6 +1,8 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { store } from '../game/store.js'
+import { getPvpRank } from '../game/pvp/rank.js'
+import PvpPlayerIdentity from '../components/pvp/PvpPlayerIdentity.vue'
 
 const tabs = [
   { id: 'global', label: 'Toàn cầu', icon: '🌍' },
@@ -25,6 +27,7 @@ function makePlayer(i, scope) {
   return {
     rank: i + 1,
     name: mockNames[i % mockNames.length] + (i >= mockNames.length ? ` #${Math.floor(i / mockNames.length) + 1}` : ''),
+    level: Math.max(1, 50 - Math.floor(i / 3)),
     elo,
     wins,
     losses,
@@ -47,6 +50,7 @@ const seasonReward = computed(() => {
   if (store.pvp.elo >= 1100) return 'Rương Arena + 100 PokePoint'
   return 'Rương Tân Binh'
 })
+const myRankBadge = computed(() => getPvpRank(store.pvp.elo))
 </script>
 
 <template>
@@ -60,7 +64,7 @@ const seasonReward = computed(() => {
         </div>
         <div class="rounded-xl bg-white/80 px-4 py-3 text-right shadow-sm">
           <div class="text-xs font-bold uppercase text-slate-500">ELO của bạn</div>
-          <div class="text-3xl font-black text-indigo-600">{{ store.pvp.elo }}</div>
+          <div class="flex items-center justify-end gap-2"><img :src="myRankBadge.image" :alt="myRankBadge.name" class="h-9 w-9" /><div class="text-right"><div class="text-2xl font-black text-indigo-600">{{ store.pvp.elo }}</div><div class="text-xs font-bold text-slate-500">{{ myRankBadge.name }}</div></div></div>
         </div>
       </div>
     </div>
@@ -84,7 +88,7 @@ const seasonReward = computed(() => {
             <thead class="sticky top-0 bg-white text-xs uppercase text-slate-500 shadow-sm">
               <tr>
                 <th class="px-4 py-3 text-left">Rank</th>
-                <th class="px-4 py-3 text-left">Tên</th>
+                <th class="px-4 py-3 text-left">Huấn luyện viên</th>
                 <th class="px-4 py-3 text-right">ELO</th>
                 <th class="px-4 py-3 text-right">Thắng/Thua</th>
                 <th class="px-4 py-3 text-right">Tỷ lệ</th>
@@ -94,7 +98,7 @@ const seasonReward = computed(() => {
             <tbody class="divide-y divide-slate-100">
               <tr v-for="player in ranking" :key="`${activeTab}-${player.rank}`" class="hover:bg-indigo-50/50">
                 <td class="px-4 py-3 font-black" :class="player.rank <= 3 ? 'text-amber-600' : 'text-slate-600'">#{{ player.rank }}</td>
-                <td class="px-4 py-3 font-bold text-slate-800">{{ player.name }}</td>
+                <td class="px-4 py-3"><PvpPlayerIdentity :player="player" compact /></td>
                 <td class="px-4 py-3 text-right font-black text-indigo-600">{{ player.elo }}</td>
                 <td class="px-4 py-3 text-right text-slate-600">{{ player.wins }}/{{ player.losses }}/{{ player.draws }}</td>
                 <td class="px-4 py-3 text-right font-bold" :class="player.winRate >= 55 ? 'text-emerald-600' : 'text-slate-600'">{{ player.winRate }}%</td>
@@ -114,8 +118,8 @@ const seasonReward = computed(() => {
               <div class="text-xs font-bold text-slate-500">Rank hiện tại</div>
             </div>
             <div class="rounded-xl bg-amber-50 p-3">
-              <div class="text-2xl font-black text-amber-600">{{ store.pvp.elo }}</div>
-              <div class="text-xs font-bold text-slate-500">ELO</div>
+              <div class="flex items-center justify-center gap-2"><img :src="myRankBadge.image" :alt="myRankBadge.name" class="h-8 w-8" /><div class="text-left"><div class="text-2xl font-black text-amber-600">{{ store.pvp.elo }}</div><div class="text-xs font-bold text-slate-500">{{ myRankBadge.name }}</div></div></div>
+              <div class="text-xs font-bold text-slate-500">ELO / Rank hiện tại</div>
             </div>
             <div class="rounded-xl bg-emerald-50 p-3">
               <div class="text-2xl font-black text-emerald-600">{{ myWinRate }}%</div>
