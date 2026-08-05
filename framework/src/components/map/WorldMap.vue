@@ -18,6 +18,10 @@ import {
   joinWorldMap,
   leaveWorldMap,
   sendWorldMove,
+  sendPvpInvite,
+  respondPvpInvite,
+  setPvPCallbacks,
+  clearPvPCallbacks,
   setWorldCallbacks,
   clearWorldCallbacks,
 } from '../../game/pvp/wsClient.js'
@@ -49,6 +53,10 @@ const infoPanelOpen = ref(false) // bảng thông tin trượt trái, bấm Tab 
 const arenaOnline = ref(false)
 const arenaPlayers = ref(0)
 const arenaConnectionHint = ref('')
+const remotePlayers = ref([])
+const incomingInvite = ref(null)
+const outgoingInvite = ref(null)
+const inviteNow = ref(Date.now())
 
 const interactMenuOpen = ref(false) // bảng chọn khi gần ô tương tác (cửa, NPC)
 const interactMenu = ref(null) // dữ liệu bảng chọn hiện tại
@@ -61,6 +69,7 @@ let arenaJoinPending = false
 let arenaJoined = false
 let arenaMoveLastSent = 0
 let arenaLastSentPos = { x: null, y: null, facing: 'down', moving: false }
+let inviteTimer = null
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
 
@@ -137,6 +146,48 @@ const mapLocations = computed(() =>
 const questLocations = computed(() => mapSpots.value.filter((s) => s.type === 'quest'))
 
 const isArenaMap = computed(() => currentMapId.value === 'arena')
+const nearbyPlayer = computed(() => {
+  if (!isArenaMap.value) return null
+  return remotePlayers.value
+    .map((player) => ({ player, distance: Math.hypot(player.x - playerX.value, player.y - playerY.value) }))
+    .filter(({ distance }) => distance <= 64)
+    .sort((a, b) => a.distance - b.distance)[0]?.player || null
+})
+const inviteSeconds = computed(() => Math.max(0, Math.ceil(((incomingInvite.value?.expiresAt || outgoingInvite.value?.expiresAt || 0) - inviteNow.value) / 1000)))
+
+function inviteTeam() {
+  return store.team.filter((p) => p && p.hp > 0).slice(0, 3).map((p) => ({
+    id: p.id, speciesId: p.speciesId, name: p.name, level: p.level, hp: p.hp, maxHp: p.maxHp,
+    atk: p.atk, def: p.def, spa: p.spa, spd: p.spd, spe: p.spe, type: p.type, types: p.types, skills: p.skills,
+  }))
+}
+
+function inviteNearbyPlayer() {
+  if (!nearbyPlayer.value || outgoingInvite.value) return
+  const team = inviteTeam()
+  if (team.length !== 3) {
+    showToast('⚠️ Cần có đủ 3 Pokémon còn HP để mời PvP.', 'warning')
+    return
+  }
+  if (!isConnected()) {
+    showToast('🌐 Chưa kết nối máy chủ PvP.', 'warning')
+    return
+  }
+  sendPvpInvite(nearbyPlayer.value.id, 'standard', team)
+  showToast(`⚔️ Đã gửi lời mời PvP cho ${nearbyPlayer.value.name}.`, 'info')
+}
+
+function answerInvite(accepted) {
+  if (!incomingInvite.value) return
+  const inviteId = incomingInvite.value.inviteId
+  if (accepted && inviteTeam().length !== 3) {
+    showToast('⚠️ Cần có đủ 3 Pokémon còn HP để tham gia PvP.', 'warning')
+    return
+  }
+  respondPvpInvite(inviteId, accepted, inviteTeam())
+  incomingInvite.value = null
+  syncSceneLock()
+}
 
 // Pokémon hoang dã đang xuất hiện — { x, y, mapId } (px thế giới, tâm tile)
 const wildDot = ref(null)
@@ -554,6 +605,13 @@ function onNpcMenuSelect(choiceId, npcId) {
   // James actions
   if (choiceId === 'pvp_lobby') {
     if (gateOnboarding()) return
+    // Từ thị trấn/địa điểm khác: đi thẳng sang arena trước.
+    // Khi đã ở arena rồi thì mới mở lobby PvP để tìm trận.
+    if (currentMapId.value !== 'arena') {
+      const arenaSpawn = getMap('arena').spawn || { x: 160, y: 160 }
+      switchMap('arena', arenaSpawn)
+      return
+    }
     emit('open', 'pvp_lobby')
     return
   }
@@ -579,6 +637,7 @@ function registerWorldCallbacks() {
   setWorldCallbacks({
     onWorldSnapshot: ({ mapId, players }) => {
       if (mapId !== 'arena') return
+      remotePlayers.value = Array.isArray(players) ? players : []
       arenaPlayers.value = Array.isArray(players) ? players.length : 0
       const scene = getScene()
       scene?.clearRemotePlayers?.()
@@ -589,20 +648,49 @@ function registerWorldCallbacks() {
     onWorldPlayerJoined: ({ player }) => {
       if (player?.mapId !== 'arena') return
       arenaPlayers.value += 1
+      remotePlayers.value = [...remotePlayers.value.filter((item) => item.id !== player.id), player]
       getScene()?.upsertRemotePlayer?.(player)
     },
     onWorldPlayerMoved: ({ player }) => {
+      remotePlayers.value = remotePlayers.value.map((item) => item.id === player.id ? { ...item, ...player } : item)
       if (player?.mapId !== 'arena') return
       getScene()?.upsertRemotePlayer?.(player)
     },
     onWorldPlayerLeft: ({ player }) => {
       if (player?.mapId !== 'arena') return
       arenaPlayers.value = Math.max(0, arenaPlayers.value - 1)
+      remotePlayers.value = remotePlayers.value.filter((item) => item.id !== player?.id)
       getScene()?.removeRemotePlayer?.(player?.id)
     },
     onWorldError: ({ message }) => {
       arenaOnline.value = false
       arenaConnectionHint.value = message || 'Không thể đồng bộ arena'
+    },
+  })
+}
+
+function registerInviteCallbacks() {
+  setPvPCallbacks({
+    onInviteReceived: (payload) => {
+      incomingInvite.value = payload
+      syncSceneLock()
+    },
+    onInviteSent: (payload) => {
+      outgoingInvite.value = payload
+    },
+    onInviteResult: (payload) => {
+      if (payload.inviteId === outgoingInvite.value?.inviteId) outgoingInvite.value = null
+      if (payload.accepted) {
+        showToast('⚔️ Lời mời được chấp nhận. Đang vào trận PvP...', 'success')
+      } else if (payload.code !== 'INVITE_CANCELLED') {
+        showToast(`ℹ️ ${payload.message || 'Lời mời PvP đã kết thúc.'}`, 'info')
+      }
+    },
+    onBattleStart: (payload) => emit('open', 'pvp_battle', payload),
+    onErrorMsg: (payload) => {
+      if (payload.code?.startsWith('INVITE_') || payload.code === 'TEAM_INVALID') {
+        outgoingInvite.value = null
+      }
     },
   })
 }
@@ -752,6 +840,12 @@ onMounted(() => {
   window.addEventListener('keydown', onGlobalKeydownCapture, true)
   window.addEventListener('keydown', onTabKeydown)
   registerWorldCallbacks()
+  registerInviteCallbacks()
+  inviteTimer = setInterval(() => {
+    inviteNow.value = Date.now()
+    if (incomingInvite.value && incomingInvite.value.expiresAt <= inviteNow.value) incomingInvite.value = null
+    if (outgoingInvite.value && outgoingInvite.value.expiresAt <= inviteNow.value) outgoingInvite.value = null
+  }, 1000)
   startGame()
 })
 onUnmounted(() => {
@@ -759,6 +853,8 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onTabKeydown)
   leaveArenaPresence()
   unregisterWorldCallbacks()
+  clearPvPCallbacks()
+  if (inviteTimer) clearInterval(inviteTimer)
   destroyGame()
 })
 
@@ -838,6 +934,53 @@ watch(isArenaMap, (active) => {
       <div class="mt-1 text-[11px] text-slate-300">👥 {{ arenaPlayers }} người đang ở đấu trường</div>
       <div v-if="arenaConnectionHint" class="mt-1 text-[11px] text-cyan-200">{{ arenaConnectionHint }}</div>
     </div>
+
+    <!-- MENU KHI ĐỨNG GẦN NGƯỜI CHƠI -->
+    <div
+      v-if="nearbyPlayer && !incomingInvite && !outgoingInvite"
+      class="absolute left-1/2 top-20 z-20 -translate-x-1/2 rounded-xl border border-fuchsia-200 bg-white/95 px-4 py-3 text-center shadow-xl backdrop-blur"
+    >
+      <div class="text-xs text-slate-500">Người chơi ở gần</div>
+      <div class="font-bold text-slate-800">👤 {{ nearbyPlayer.name }}</div>
+      <button
+        class="mt-2 rounded-lg bg-fuchsia-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-fuchsia-700 disabled:cursor-not-allowed disabled:opacity-50"
+        :disabled="!arenaOnline"
+        @click="inviteNearbyPlayer"
+      >
+        ⚔️ Mời PvP
+      </button>
+    </div>
+
+    <!-- TRẠNG THÁI LỜI MỜI ĐÃ GỬI -->
+    <div
+      v-if="outgoingInvite"
+      class="absolute left-1/2 top-20 z-20 -translate-x-1/2 rounded-xl border border-amber-200 bg-white/95 px-4 py-3 text-center shadow-xl backdrop-blur"
+    >
+      <div class="font-bold text-slate-800">⏳ Đang chờ {{ outgoingInvite.target?.name }} phản hồi</div>
+      <div class="mt-1 text-xs text-slate-500">Còn {{ inviteSeconds }} giây</div>
+    </div>
+
+    <!-- LỜI MỜI PVP ĐẾN -->
+    <Teleport to="body">
+      <div v-if="incomingInvite" class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
+        <div class="w-full max-w-sm rounded-2xl border border-fuchsia-200 bg-white p-6 text-center shadow-2xl">
+          <div class="text-4xl">⚔️</div>
+          <h3 class="mt-2 text-xl font-black text-slate-800">Lời mời PvP</h3>
+          <p class="mt-2 text-sm text-slate-600">
+            <strong>{{ incomingInvite.from?.name }}</strong> muốn đấu PvP với bạn.
+          </p>
+          <p class="mt-1 text-xs text-slate-400">Tự động hết hạn sau {{ inviteSeconds }} giây</p>
+          <div class="mt-5 grid grid-cols-2 gap-3">
+            <button class="rounded-xl border border-slate-200 px-3 py-2 font-bold text-slate-600 hover:bg-slate-50" @click="answerInvite(false)">
+              Từ chối
+            </button>
+            <button class="rounded-xl bg-fuchsia-600 px-3 py-2 font-bold text-white hover:bg-fuchsia-700" @click="answerInvite(true)">
+              Đồng ý
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- BẢNG THÔNG TIN TRƯỢT TRÁI (bấm Tab để mở/đóng) -->
     <Teleport to="body">

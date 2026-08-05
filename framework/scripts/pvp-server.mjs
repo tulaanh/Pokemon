@@ -17,6 +17,9 @@ const clients = new Map()
 const queue = []
 const battles = new Map()
 const worldRooms = new Map()
+const invites = new Map()
+const INVITE_TTL_MS = 30_000
+const INVITE_DISTANCE = 64
 
 function send(ws, type, payload = {}) {
   if (ws?.readyState !== WebSocket.OPEN) return false
@@ -83,6 +86,78 @@ function validateTeam(team) {
     return 'Đội hình có Pokémon đã hết HP.'
   }
   return ''
+}
+
+function distanceBetween(a, b) {
+  return Math.hypot((a?.x || 0) - (b?.x || 0), (a?.y || 0) - (b?.y || 0))
+}
+
+function clearInvitesFor(client, notify = false) {
+  for (const [id, invite] of invites) {
+    if (invite.from !== client && invite.to !== client) continue
+    invites.delete(id)
+    if (notify) {
+      const other = invite.from === client ? invite.to : invite.from
+      send(other?.ws, 'pvp_invite_result', { inviteId: id, accepted: false, code: 'INVITE_CANCELLED', message: 'Lời mời PvP đã bị hủy.' })
+    }
+  }
+}
+
+function sendInvite(client, payload = {}) {
+  const target = [...clients.values()].find((candidate) => candidate.playerId === payload.targetId)
+  const error = (code, message) => send(client.ws, 'error', { code, message })
+  if (!target || target === client) return error('INVITE_TARGET_INVALID', 'Không tìm thấy người chơi này.')
+  if (!client.world || !target.world || client.world.mapId !== target.world.mapId || distanceBetween(client.world, target.world) > INVITE_DISTANCE) {
+    return error('INVITE_TOO_FAR', 'Hai người chơi phải ở gần nhau trong cùng bản đồ.')
+  }
+  if (client.battleId || target.battleId || queue.some((item) => item.client === client || item.client === target)) {
+    return error('INVITE_BUSY', 'Một trong hai người chơi đang bận.')
+  }
+  const teamError = validateTeam(payload.team)
+  if (teamError) return error('TEAM_INVALID', teamError)
+  client.team = payload.team.map(normalizePokemon)
+  const existing = [...invites.values()].find((invite) => invite.from === client || invite.to === client || invite.from === target || invite.to === target)
+  if (existing) return error('INVITE_PENDING', 'Một trong hai người chơi đang có lời mời chờ xử lý.')
+
+  const inviteId = shortId('invite')
+  const invite = { id: inviteId, from: client, to: target, expiresAt: Date.now() + INVITE_TTL_MS }
+  invites.set(inviteId, invite)
+  send(target.ws, 'pvp_invite_received', {
+    inviteId,
+    from: publicWorldPlayer(client),
+    expiresAt: invite.expiresAt,
+  })
+  send(client.ws, 'pvp_invite_sent', { inviteId, target: publicWorldPlayer(target), expiresAt: invite.expiresAt })
+  setTimeout(() => {
+    if (invites.get(inviteId) !== invite) return
+    invites.delete(inviteId)
+    send(client.ws, 'pvp_invite_result', { inviteId, accepted: false, code: 'INVITE_EXPIRED', message: 'Lời mời PvP đã hết hạn.' })
+    send(target.ws, 'pvp_invite_result', { inviteId, accepted: false, code: 'INVITE_EXPIRED', message: 'Lời mời PvP đã hết hạn.' })
+  }, INVITE_TTL_MS)
+}
+
+function respondInvite(client, payload = {}) {
+  const invite = invites.get(payload.inviteId)
+  if (!invite || invite.to !== client) return send(client.ws, 'error', { code: 'INVITE_INVALID', message: 'Lời mời không còn hiệu lực.' })
+  invites.delete(invite.id)
+  const from = invite.from
+  if (!payload.accepted) {
+    send(from.ws, 'pvp_invite_result', { inviteId: invite.id, accepted: false, code: 'INVITE_DECLINED', message: `${publicPlayer(client).name} đã từ chối lời mời PvP.` })
+    return send(client.ws, 'pvp_invite_result', { inviteId: invite.id, accepted: false, code: 'INVITE_DECLINED', message: 'Bạn đã từ chối lời mời PvP.' })
+  }
+  const teamError = validateTeam(payload.team)
+  if (teamError) {
+    send(from.ws, 'pvp_invite_result', { inviteId: invite.id, accepted: false, code: 'TEAM_INVALID', message: 'Đối thủ chưa có đội hình hợp lệ.' })
+    return send(client.ws, 'error', { code: 'TEAM_INVALID', message: teamError })
+  }
+  client.team = payload.team.map(normalizePokemon)
+  if (!from.world || !client.world || from.world.mapId !== client.world.mapId || distanceBetween(from.world, client.world) > INVITE_DISTANCE || from.battleId || client.battleId) {
+    send(from.ws, 'pvp_invite_result', { inviteId: invite.id, accepted: false, code: 'INVITE_INVALID', message: 'Lời mời không còn hợp lệ.' })
+    return send(client.ws, 'pvp_invite_result', { inviteId: invite.id, accepted: false, code: 'INVITE_INVALID', message: 'Lời mời không còn hợp lệ.' })
+  }
+  send(from.ws, 'pvp_invite_result', { inviteId: invite.id, accepted: true, code: 'INVITE_ACCEPTED', message: `${publicPlayer(client).name} đã đồng ý lời mời PvP.` })
+  send(client.ws, 'pvp_invite_result', { inviteId: invite.id, accepted: true, code: 'INVITE_ACCEPTED', message: 'Bạn đã đồng ý lời mời PvP.' })
+  startBattle(from, client)
 }
 
 function removeFromQueue(client) {
@@ -297,17 +372,15 @@ function startBattle(a, b) {
   send(a.ws, 'matched', { opponent: publicPlayer(b), format: a.format })
   send(b.ws, 'matched', { opponent: publicPlayer(a), format: b.format })
 
-  setTimeout(() => {
-    for (const player of battle.players) {
-      send(player.ws, 'battle_start', {
-        battleId,
-        opponent: publicPlayer(battle.players.find((p) => p !== player)),
-        state: makeBattleStateFor(battle, player),
-        nextActor: nextActorFor(battle, player),
-        deadline: battle.deadline,
-      })
-    }
-  }, 700)
+  for (const player of battle.players) {
+    send(player.ws, 'battle_start', {
+      battleId,
+      opponent: publicPlayer(battle.players.find((p) => p !== player)),
+      state: makeBattleStateFor(battle, player),
+      nextActor: nextActorFor(battle, player),
+      deadline: battle.deadline,
+    })
+  }
 }
 
 function getAliveIndex(client) {
@@ -398,6 +471,7 @@ function handleTurnAction(client, payload) {
 
 function disconnectClient(client) {
   removeFromQueue(client)
+  clearInvitesFor(client, true)
   leaveWorld(client, { mapId: client.world?.mapId, keepWorldState: false })
   if (!client.battleId) return
 
@@ -459,6 +533,12 @@ wss.on('connection', (ws, req) => {
       case 'cancel_matchmake':
         removeFromQueue(client)
         send(ws, 'queue_update', { position: 0, estimatedWaitMs: 0 })
+        break
+      case 'pvp_invite':
+        sendInvite(client, payload)
+        break
+      case 'pvp_invite_response':
+        respondInvite(client, payload)
         break
       case 'turn_action':
         handleTurnAction(client, payload)

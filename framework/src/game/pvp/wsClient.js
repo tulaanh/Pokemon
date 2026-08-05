@@ -32,6 +32,9 @@ const callbacks = {
   onQueueUpdate: null,
   onOpponentDisconnected: null,
   onErrorMsg: null,
+  onInviteReceived: null,
+  onInviteSent: null,
+  onInviteResult: null,
 }
 
 const worldCallbacks = {
@@ -103,6 +106,15 @@ function handleMessage(event) {
       case 'error':
         callbacks.onErrorMsg?.(payload)
         showToast(`❌ ${payload.message}`, 'error')
+        break
+      case 'pvp_invite_received':
+        callbacks.onInviteReceived?.(payload)
+        break
+      case 'pvp_invite_sent':
+        callbacks.onInviteSent?.(payload)
+        break
+      case 'pvp_invite_result':
+        callbacks.onInviteResult?.(payload)
         break
       case 'pong':
         // Heartbeat response
@@ -243,6 +255,14 @@ export function clearWorldCallbacks() {
 export function findMatch(format = 'standard', team) {
   store.pvp.matchmaking = true
   send('matchmake', { format, team })
+}
+
+export function sendPvpInvite(targetId, format = 'standard', team = []) {
+  return send('pvp_invite', { targetId, format, team })
+}
+
+export function respondPvpInvite(inviteId, accepted, team = []) {
+  return send('pvp_invite_response', { inviteId, accepted: !!accepted, team })
 }
 
 // Hủy tìm trận
